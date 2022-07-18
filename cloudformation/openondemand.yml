@@ -1,0 +1,1489 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: OpenOnDemand on AWS
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Simple AD
+        Parameters:
+          - DomainName
+          - TopLevelDomain
+      - Label:
+          default: Frontend
+        Parameters:
+          - CertificateArn
+          - WebsiteDomainName
+    ParameterLabels:
+      DomainName:
+        default: Domain  Name
+      TopLevelDomain:
+        default: Top level domain
+Parameters:
+  DomainName:
+    Description:  Domain name not including the top level domain
+    Default: hpclab
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9]+'
+  TopLevelDomain:
+    Description: TLD for your domain (i.e. local, com, etc)
+    Type: String
+    MinLength: '1'
+    MaxLength: '15'
+    Default: local
+    AllowedPattern: '[a-zA-Z0-9]+'
+  CertificateArn:
+    Description: ARN for ACM Certificate
+    Type: String
+  WebsiteDomainName:
+    Description: Domain name for world facing website
+    Type: String
+  HostedZoneName:
+    Description: Hosted zone for the domain
+    Type: String
+  ConfigFileBucketName:
+    Description: Config file bucket name for pcluster
+    Type: String
+  PortalAllowedIPCIDR:
+    Description: IP CIDR for access to the Portal.
+    Type: String
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid CIDR range of the form x.x.x.x/x.
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMIID: ami-0ee70e88eed976a1b
+      ALBLogAccount: 127311923021
+    us-east-2:
+      AMIID: ami-045b0a05944af45c1
+      ALBLogAccount: 033677994240
+    us-west-1:
+      AMIID: ami-006f59adcb98c236f
+      ALBLogAccount: 027434742980
+    us-west-2:
+      AMIID: ami-056c679fab9e48d8a
+      ALBLogAccount: 797873946194
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - VPC'
+
+  FlowLogLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: {}
+
+  FlowLogDeliveryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 'vpc-flow-logs.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: flowlog-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: !GetAtt FlowLogLogGroup.Arn
+  VPCFlowLogs:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      ResourceId: !Ref VPC
+      ResourceType: VPC
+      TrafficType: ALL
+      DeliverLogsPermissionArn: !GetAtt FlowLogDeliveryRole.Arn
+      LogGroupName: !Ref FlowLogLogGroup
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - InternetGateway'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  NATGW1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+        AllocationId: !GetAtt EIP1.AllocationId
+        SubnetId: !Ref PublicSubnet1
+
+  EIP1:
+    DependsOn: AttachGateway
+    Type: AWS::EC2::EIP
+    Properties:
+        Domain: vpc
+
+  NATGW2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+        AllocationId: !GetAtt EIP2.AllocationId
+        SubnetId: !Ref PublicSubnet2
+
+  EIP2:
+    DependsOn: AttachGateway
+    Type: AWS::EC2::EIP
+    Properties:
+        Domain: vpc
+
+  PublicRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - PublicRouteTable1'
+
+  DefaultPublicRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - PublicRouteTable2'
+
+  DefaultPublicRoute2:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.0.0.0/26
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - Public Subnet1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 2
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.0.0.128/26
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - Public Subnet2'
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.0.2.0/24
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - Private Subnet1'
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - PrivateRouteTable1'
+
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGW1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 2
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.0.3.0/24
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - Private Subnet2'
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - PrivateRouteTable2'
+
+  DefaultPrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGW2
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable1
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable2
+      SubnetId: !Ref PublicSubnet2
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubnet2
+
+  DHCPOptionSet:
+    Type: AWS::EC2::DHCPOptions
+    Properties:
+        DomainName: !Sub ${DomainName}.${TopLevelDomain}
+        DomainNameServers:
+          - !Join [",", [!Select [0, !GetAtt SimpleAD.DnsIpAddresses], !Select [1, !GetAtt SimpleAD.DnsIpAddresses]]]
+
+  DHCPOptionSetAssociation:
+    Type: AWS::EC2::VPCDHCPOptionsAssociation
+    Properties:
+      DhcpOptionsId: !Ref DHCPOptionSet
+      VpcId: !Ref VPC
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      RouteTableIds:
+        - !Ref PublicRouteTable1
+        - !Ref PublicRouteTable2
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref VPC
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow # Allows access to buckets owned by current account
+            Principal: "*"
+            Action: "s3:*"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "s3:ResourceAccount": !Ref "AWS::AccountId"
+          - Effect: Allow # Allows access to bucket that contains SSM agent and cfn-bootstrap
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::amazon-ssm-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::cloudformation-examples/*
+              - !Sub arn:${AWS::Partition}:s3:::amazoncloudwatch-agent/*
+              - !Sub arn:${AWS::Partition}:s3:::amazonlinux-2-repos-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::${AWS::Region}-aws-parallelcluster/*
+              - !Sub arn:${AWS::Partition}:s3:::dcv-license.${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::cloudformation-waitcondition-${AWS::Region}/*
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for ALB
+      SecurityGroupIngress:
+        - CidrIp: !Ref PortalAllowedIPCIDR
+          FromPort: 5556
+          ToPort: 5556
+          IpProtocol: tcp
+          Description: OpenDEX Auth URL
+        - CidrIp: !Ref PortalAllowedIPCIDR
+          FromPort: 5554
+          ToPort: 5554
+          IpProtocol: tcp
+          Description: OpenDEX Auth URL
+        - CidrIp: !Ref PortalAllowedIPCIDR
+          FromPort: 443
+          ToPort: 443
+          IpProtocol: tcp
+          Description: HTTPS Access
+      SecurityGroupEgress:
+        - Description: Remove default rule for egress
+          CidrIp: 127.0.0.1/32
+          IpProtocol: "-1"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - ALB SecurityGroup'
+
+  ALBSecurityGroupEgressDEX:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5556
+      ToPort: 5556
+      Description: OpenDEX Auth URL
+      GroupId: !GetAtt ALBSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt PortalSecurityGroup.GroupId
+
+  ALBSecurityGroupEgressDEXSSL:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5554
+      ToPort: 5554
+      Description: OpenDEX Auth URL
+      GroupId: !GetAtt ALBSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt PortalSecurityGroup.GroupId
+
+  ALBSecurityGroupEgressHTTP:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      Description: HTTPS Outbound
+      GroupId: !GetAtt ALBSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt PortalSecurityGroup.GroupId
+
+  ALBSecurityGroupEgressHTTPS:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      Description: HTTP outbound
+      GroupId: !GetAtt ALBSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt PortalSecurityGroup.GroupId
+
+  PortalSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for OOD Portal Cluster
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref ALBSecurityGroup
+          FromPort: 5556
+          ToPort: 5556
+          IpProtocol: tcp
+          Description: OpenDEX Auth URL
+        - SourceSecurityGroupId: !Ref ALBSecurityGroup
+          FromPort: 5554
+          ToPort: 5554
+          IpProtocol: tcp
+          Description: OpenDEX Auth URL
+        - SourceSecurityGroupId: !Ref ALBSecurityGroup
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+          Description: HTTP Access
+        - SourceSecurityGroupId: !Ref ALBSecurityGroup
+          FromPort: 443
+          ToPort: 443
+          IpProtocol: tcp
+          Description: HTTPS Access
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          Description: Allow outbound 443 traffic to download packages
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          Description: Allow outbound 80 traffic to download packages
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - SecurityGroup'
+
+  PortalHeadNodeAccountingEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 6819
+      ToPort: 6819
+      Description: Allows outbound to Head Nodes for Slurm Accounting
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+
+  PortalHeadNodeSlurmEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 6820
+      ToPort: 6820
+      Description: Allows outbound to Head Nodes for Slurm Accounting
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+
+  PortalHeadNodeEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 389
+      ToPort: 389
+      Description: Allows outbound from portal to LDAP in VPC CIDR
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 10.0.0.0/16
+
+  PortalHeadNodeLDAPUDPEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: udp
+      FromPort: 389
+      ToPort: 389
+      Description: Allows outbound from portal to LDAP
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 10.0.0.0/16
+
+  PortalHeadNodeLDAPDNSEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 53
+      ToPort: 53
+      Description: Allows outbound from portal to LDAP
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 10.0.0.0/16
+
+  PortalHeadNodeLDAP464Egress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 464
+      ToPort: 464
+      Description: Allows outbound from portal to LDAP
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 10.0.0.0/16
+
+  PortalHeadNodeLDAPDNSUDPEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: udp
+      FromPort: 53
+      ToPort: 53
+      Description: Allows outbound from portal to LDAP
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 10.0.0.0/16
+
+  PortalHeadNodeLDAPPingUDPEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: udp
+      FromPort: 88
+      ToPort: 88
+      Description: Allows outbound from portal to LDAP
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 10.0.0.0/16
+
+
+  PortalHeadNodeLDAPKerberosTCPEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 88
+      ToPort: 88
+      Description: Allows outbound from portal to LDAP
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 10.0.0.0/16
+
+  PortalHeadNodeDexMetadata:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5554
+      ToPort: 5554
+      Description: Allows outbound from portal to Dex metadata endpoint
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 0.0.0.0/0
+
+  PortalHeadNodeSSHEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      Description: Allows outbound to Head Nodes for SSH
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+
+  HeadNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for PCluster HeadNode
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref PortalSecurityGroup
+          FromPort: 6819
+          ToPort: 6819
+          IpProtocol: tcp
+          Description: Allows inbound for Slurm Accounting
+        - SourceSecurityGroupId: !Ref PortalSecurityGroup
+          FromPort: 6820
+          ToPort: 6820
+          IpProtocol: tcp
+          Description: Allows inbound for Slurm Accounting
+      SecurityGroupEgress:
+        - Description: Remove default rule for egress
+          CidrIp: 127.0.0.1/32
+          IpProtocol: "-1"
+      VpcId: !Ref VPC
+
+  ComputeNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for PCluster ComputeNode
+      SecurityGroupEgress:
+        - Description: Remove default rule for egress
+          CidrIp: 127.0.0.1/32
+          IpProtocol: "-1"
+      VpcId: !Ref VPC
+
+  ADAdministratorSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub AD Secrets for Open On Demand Stack ${AWS::StackName}
+      GenerateSecretString:
+        PasswordLength: 12
+        ExcludeCharacters: '"@/\''$`,;!%'
+
+  OpenOnDemandSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub Secrets for Open On Demand Stack ${AWS::StackName}
+      SecretString: !Join
+        - ''
+        - - '{'
+          - !Sub '"TopLevelDomain": "${TopLevelDomain}",'
+          - !Sub '"ClusterConfigBucket": "${ClusterConfigBucket}",'
+          - !Sub '"DomainName": "${DomainName}"'
+          - '}'
+
+  SimpleAD:
+    Type: AWS::DirectoryService::SimpleAD
+    Properties:
+      Name: !Sub ${DomainName}.${TopLevelDomain}
+      ShortName: !Ref DomainName
+      Size: Small
+      Password: !Sub '{{resolve:secretsmanager:${ADAdministratorSecret}:SecretString}}'
+      VpcSettings:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        VpcId: !Ref VPC
+
+  OODInstanceManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource:
+              - !Ref ADAdministratorSecret
+              - !Ref OpenOnDemandSecrets
+              - !Ref AuroraMasterSecret
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:ListBucket
+              - s3:DeleteObject
+            Resource:
+              - !GetAtt ClusterConfigBucket.Arn
+              - !Sub ${ClusterConfigBucket.Arn}/*
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}/*
+              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}
+          - Effect: Allow
+            Action:
+              - elasticfilesystem:ClientMount
+              - elasticfilesystem:ClientWrite
+              - elasticfilesystem:ClientRootAccess
+            Resource:
+              - !GetAtt SharedFileSystem.Arn
+          - Effect: Allow
+            Action:
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+          - Effect: Allow
+            Action:
+              - ec2:DescribeTags
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
+            Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+
+  OODInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - !Ref OODInstanceManagedPolicy
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - OpenOnDemand IAM Role'
+
+  OpenOnDemandInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref OODInstanceRole
+
+  ALB:
+    DependsOn:
+      - AttachGateway
+      - LoadBalancerLogBucketPolicy
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      SubnetMappings:
+        - SubnetId: !Ref PublicSubnet1
+        - SubnetId: !Ref PublicSubnet2
+      Type: application
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: !Ref LoadBalancerLogBucket
+        - Key: access_logs.s3.prefix
+          Value: portal-alb
+
+  OpenOnDemandLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Metadata:
+      AWS::CloudFormation::Authentication:
+        rolebased:
+          type: S3
+          buckets:
+            - !Ref ConfigFileBucketName
+          roleName: !Ref OODInstanceRole
+      # TODO: Add wait condition notification when done
+      AWS::CloudFormation::Init:
+        configSets:
+          config:
+            - config
+            - setupInfrastructure
+            - slurm
+            - ood
+        config:
+          packages:
+            yum:
+              awscli: []
+              jq: []
+              realmd: []
+              sssd: []
+          commands:
+            initial_setup:
+              command: |
+                setenforce 0
+                sed -i "s/SELINUX=enforcing/SELINUX=permissive/" /etc/selinux/config
+                dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y
+                dnf config-manager --set-enabled powertools -y
+            configure_cert:
+              command: /etc/ood-install/scripts/configure_instance_cert.sh
+          sources:
+            /etc/ood-install: https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/main.zip
+          files: # Creates a file with appropriate variables for use in scripts. No secrets in here
+            /etc/ood-install/set_variables.sh:
+              content: !Sub |
+                export AD_SECRET_ID=${OpenOnDemandSecrets}
+                export AD_PASSWORD=${ADAdministratorSecret}
+                export AWS_REGION=${AWS::Region}
+                export DOMAIN_NAME=${DomainName}
+                export TOP_LEVEL_DOMAIN=${TopLevelDomain}
+                export RDS_SECRET_ID=${AuroraMasterSecret}
+                export ALB_DNS_NAME=${ALB.DNSName}
+                export WEBSITE_DOMAIN=${WebsiteDomainName}
+                export LDAP_NLB=${NLB.DNSName}
+                export EFS_ID=${SharedFileSystem}
+                export CLUSTER_CONFIG_BUCKET=${ClusterConfigBucket}
+              mode: "000744"
+              owner: "root"
+              group: "root"
+          users:
+            slurm:
+              uid: 401
+            munge:
+              uid: 402
+          services:
+            amazon-ssm-agent:
+              enabled: "true"
+              ensureRunning: "true"
+        setupInfrastructure:
+          commands:
+            configure_cloudwatch:
+              command: ./configure_cloudwatch_metrics.sh
+              cwd: /etc/ood-install/scripts
+            join_domain:
+              command: |
+                . /etc/ood-install/set_variables.sh
+                ./join_domain.sh
+              cwd: /etc/ood-install/scripts
+            mount_efs:
+              command: |
+                . /etc/ood-install/set_variables.sh
+                ./mount_efs.sh
+              cwd: /etc/ood-install/scripts
+            configure_mkhomedir:
+              command: /etc/ood-install/scripts/configure_mkhomedir.sh
+        slurm:
+          commands:
+            install_munge:
+              command: |
+                . /etc/ood-install/set_variables.sh
+                ./install_munge.sh
+              cwd: /etc/ood-install/scripts
+            install_slurm:
+              command: ./install_slurm.sh
+              cwd: /etc/ood-install/scripts
+            configure_accounting:
+              command: |
+                . /etc/ood-install/set_variables.sh
+                ./configure_slurm_accounting.sh
+              cwd: /etc/ood-install/scripts
+        ood:
+          commands:
+            ood_install:
+              command: |
+                . /etc/ood-install/set_variables.sh
+                ./install_ood.sh
+              cwd: /etc/ood-install/scripts
+    Properties:
+      LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
+      LaunchTemplateData:
+        ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', AMIID ]
+        InstanceType: m6i.large
+        IamInstanceProfile:
+          Name: !Ref OpenOnDemandInstanceProfile
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: true
+              VolumeSize: 60
+              VolumeType: gp3
+        SecurityGroupIds:
+          - !Ref PortalSecurityGroup
+        Monitoring:
+          Enabled: true
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            dnf install -y https://s3.${AWS::Region}.amazonaws.com/amazon-ssm-${AWS::Region}/latest/linux_amd64/amazon-ssm-agent.rpm
+            systemctl enable amazon-ssm-agent
+            systemctl start amazon-ssm-agent
+            yum install -y epel-release
+            yum install -y python3
+            cd /opt
+            curl -O https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
+            tar -xvpf aws-cfn-bootstrap-py3-latest.tar.gz
+            cd aws-cfn-bootstrap-2.0
+            python3 setup.py build
+            python3 setup.py install
+
+            cd /opt
+            mkdir aws
+            cd aws
+            mkdir bin
+            INSTALL_PATH=/usr/local/bin
+            ln -s $INSTALL_PATH/cfn-hup /opt/aws/bin/cfn-hup
+            ln -s $INSTALL_PATH/cfn-init /opt/aws/bin/cfn-init
+            ln -s $INSTALL_PATH/cfn-signal /opt/aws/bin/cfn-signal
+            ln -s $INSTALL_PATH/cfn-elect-cmd-leader /opt/aws/bin/cfn-elect-cmd-leader
+            ln -s $INSTALL_PATH/cfn-get-metadata /opt/aws/bin/cfn-get-metadata
+            ln -s $INSTALL_PATH/cfn-send-cmd-event /opt/aws/bin/cfn-send-cmd-event
+            ln -s $INSTALL_PATH/cfn-send-cmd-result /opt/aws/bin/cfn-send-cmd-result
+
+            # Call cfn-init script to install files and packages
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configset config
+
+  OODServerASG:
+    DependsOn: SimpleAD
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: "1"
+      MaxSize: "1"
+      DesiredCapacity: "1"
+      HealthCheckGracePeriod: 240
+      MetricsCollection:
+        - Granularity: 1Minute
+      LaunchTemplate:
+        LaunchTemplateId: !Ref OpenOnDemandLaunchTemplate
+        Version: !GetAtt OpenOnDemandLaunchTemplate.LatestVersionNumber
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      TargetGroupARNs:
+        - !Ref OpenOnDemandTargetGroupHTTPS
+        - !Ref OpenOnDemandDEXTargetGroup
+      Tags:
+        - Key: Name
+          Value: !Sub OpenOnDemand Portal - ${AWS::StackName}-cfn-init
+          PropagateAtLaunch: true
+        - Key: ood
+          Value: !Sub webportal-${AWS::StackName}
+          PropagateAtLaunch: true
+    UpdatePolicy:
+      AutoScalingRollingUpdate: {}
+
+  ComputeNodeMountTargetEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      Description: Allows outbound to EFS mount target
+      GroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt MountTargetSecurityGroup.GroupId
+
+  HeadNodeMountTargetEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      Description: Allows outbound to EFS mount target
+      GroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt MountTargetSecurityGroup.GroupId
+
+  PortalMountTargetEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      Description: Allows outbound to EFS mount target
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt MountTargetSecurityGroup.GroupId
+
+  MountTargetSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Ref: VPC
+      GroupDescription: Security group for mount target
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !GetAtt PortalSecurityGroup.GroupId
+          Description: Ingress Rule for OOD Portal
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+          Description: Ingress Rule for HeadNode
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
+          Description: Ingress Rule for ComputeNode
+      SecurityGroupEgress:
+        - Description: Remove default rule for egress
+          CidrIp: 127.0.0.1/32
+          IpProtocol: "-1"
+
+  SharedFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      PerformanceMode: generalPurpose
+
+  MountTargetResource1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref SharedFileSystem
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroups:
+        - !Ref MountTargetSecurityGroup
+
+  MountTargetResource2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref SharedFileSystem
+      SubnetId: !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref MountTargetSecurityGroup
+
+  OpenOnDemandTargetGroupHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 6
+      HealthCheckTimeoutSeconds: 5
+      TargetType: instance
+      Protocol: HTTPS
+      Port: 443
+      VpcId: !Ref VPC
+      Matcher:
+        HttpCode: 301
+
+  OpenOnDemandListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref OpenOnDemandTargetGroupHTTPS
+      LoadBalancerArn: !Ref ALB
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      Port: 443
+      Protocol: "HTTPS"
+      SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+
+  OpenOnDemandDEXTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 6
+      HealthCheckTimeoutSeconds: 5
+      HealthCheckPath: /.well-known/openid-configuration
+      TargetType: instance
+      Protocol: HTTPS
+      Port: 5554
+      VpcId: !Ref VPC
+
+  OpenOnDemandDEXListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref OpenOnDemandDEXTargetGroup
+      LoadBalancerArn: !Ref ALB
+      Port: 5554
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      Protocol: "HTTPS"
+      SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+
+  ClusterConfigBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  LoadBalancerLogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  LoadBalancerLogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LoadBalancerLogBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AWSLogDeliveryWriteNLB"
+            Effect: Allow
+            Principal:
+              Service: 'delivery.logs.amazonaws.com'
+            Action: "s3:PutObject"
+            Resource: !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}/*
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': 'bucket-owner-full-control'
+          - Sid: "AWSLogDeliveryAclCheck"
+            Effect: Allow
+            Principal:
+              Service: 'delivery.logs.amazonaws.com'
+            Action: "s3:GetBucketAcl"
+            Resource: !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}
+          - Sid: "AWSLogDeliveryWriteALB"
+            Effect: Allow
+            Principal:
+              AWS: !Sub
+                - arn:aws:iam::${LogAccount}:root
+                - LogAccount: !FindInMap [RegionMap, !Ref 'AWS::Region', ALBLogAccount ]
+            Action: "s3:PutObject"
+            Resource: !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}/*
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': 'bucket-owner-full-control'
+
+  NLB:
+    DependsOn: LoadBalancerLogBucketPolicy
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: !Ref LoadBalancerLogBucket
+        - Key: access_logs.s3.prefix
+          Value: ldap-nlb
+      Scheme: internal
+      Subnets:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Type: network
+
+  LDAPlistener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ADTargetGroup
+      LoadBalancerArn: !Ref NLB
+      Port: 389
+      Protocol: "TCP"
+
+  ADTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      TargetType: ip
+      Protocol: TCP
+      Port: 389
+      VpcId: !Ref VPC
+      Targets:
+        - Id: !Select [0, !GetAtt SimpleAD.DnsIpAddresses]
+        - Id: !Select [1, !GetAtt SimpleAD.DnsIpAddresses]
+
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Ref EventBridgeManagedPolicy
+
+  EventBridgeManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow # Allows execution of RunShellScript doc
+            Action:
+              - ssm:SendCommand
+            Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+
+  ClusterConfigUpload:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Copy config files to OOD instance when an object is uploaded
+      State: "ENABLED"
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail:
+          eventName:
+            - "PutObject"
+          requestParameters:
+            bucketName:
+              - !Ref ClusterConfigBucket
+      Targets:
+        - Id: RunShell
+          Arn: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+          RoleArn: !GetAtt EventBridgeRole.Arn
+          Input: !Sub |
+           {
+            "commands": ["aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/"]
+           }
+          RunCommandParameters:
+            RunCommandTargets:
+              - Key: tag:ood
+                Values:
+                  - !Sub webportal-${AWS::StackName}
+
+  PClusterCloudformationDeleted:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Remove config files from OOD instance when pcluster removes a stack
+      State: "ENABLED"
+      EventPattern:
+        source:
+          - "aws.cloudformation"
+        detail:
+          eventName:
+            - "DeleteStack"
+      Targets:
+        - Id: RunShell
+          Arn: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+          RoleArn: !GetAtt EventBridgeRole.Arn
+          InputTransformer:
+            InputPathsMap:
+              stackName: $.detail.requestParameters.stackName
+            InputTemplate: !Sub |
+              {
+                "commands": [
+                    "IFS='/ ' read -r -a array <<< '<stackName>'",
+                    "stackName=${!array[1]}",
+                    "tags=$(aws cloudformation describe-stacks --stack-name $stackName --region ${AWS::Region} --query \"Stacks[0].Tags[?Key=='parallelcluster:version']\" --output text)",
+                    "if [ ! -z \"$tags\" ];",
+                    "then",
+                    " aws s3 rm s3://${ClusterConfigBucket}/clusters/$stackName.yml",
+                    " rm /etc/ood/config/clusters.d/$stackName.yml",
+                    " sacctmgr remove cluster $stackName -i",
+                    "fi"
+                  ]
+              }
+          RunCommandParameters:
+            RunCommandTargets:
+              - Key: tag:ood
+                Values:
+                  - !Sub webportal-${AWS::StackName}
+
+  DataTrailBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  DataTrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DataTrailBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AWSCloudTrailAclCheck"
+            Effect: Allow
+            Principal:
+              Service: 'cloudtrail.amazonaws.com'
+            Action: "s3:GetBucketAcl"
+            Resource: !Sub arn:${AWS::Partition}:s3:::${DataTrailBucket}
+          - Sid: "AWSCloudTrailWrite"
+            Effect: Allow
+            Principal:
+              Service: 'cloudtrail.amazonaws.com'
+            Action: "s3:PutObject"
+            Resource: !Sub arn:${AWS::Partition}:s3:::${DataTrailBucket}/AWSLogs/${AWS::AccountId}/*
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': 'bucket-owner-full-control'
+
+  CloudTrailDataTrail:
+    DependsOn: DataTrailBucketPolicy
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: !Sub DataTrail-${ClusterConfigBucket}
+      IsMultiRegionTrail: false
+      IsOrganizationTrail: false
+      IsLogging: true
+      S3BucketName: !Ref DataTrailBucket
+      EventSelectors:
+        - DataResources:
+            - Type: AWS::S3::Object
+              Values:
+                - !Sub ${ClusterConfigBucket.Arn}/
+          ReadWriteType: WriteOnly
+
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName : !Ref HostedZoneName
+      Name: !Ref WebsiteDomainName
+      AliasTarget:
+        DNSName: !GetAtt ALB.DNSName
+        HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
+      Type: A
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DB Subnet Group
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  AuroraMasterSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}-rds-slurm-accounting-secret
+      GenerateSecretString:
+        SecretStringTemplate: !Join ['', ['{"username": "admin"}']]
+        GenerateStringKey: "password"
+        ExcludeCharacters: '"@/\'
+        PasswordLength: 16
+
+  SecretRDSInstanceAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref AuroraMasterSecret
+      TargetId: !Ref AuroraDBCluster
+      TargetType: AWS::RDS::DBCluster
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for DB
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - Description: Remove default rule for egress
+          CidrIp: 127.0.0.1/32
+          IpProtocol: "-1"
+
+  DatabaseSecurityGroupIngressOOD:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      GroupId: !Ref DatabaseSecurityGroup
+      SourceSecurityGroupId: !Ref PortalSecurityGroup
+      FromPort: 3306
+      ToPort: 3306
+      Description: Allow database ingress from OOD instance
+
+  DatabaseSecurityGroupIngressHeadNode:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      GroupId: !Ref DatabaseSecurityGroup
+      SourceSecurityGroupId: !Ref HeadNodeSecurityGroup
+      FromPort: 3306
+      ToPort: 3306
+      Description: Allow database ingress from ParallelCluster HeadNode instance
+
+  HeadNodeDBEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      Description: Allows outbound to DB
+      GroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt DatabaseSecurityGroup.GroupId
+
+  PortalDBEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      Description: Allows outbound to DB
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt DatabaseSecurityGroup.GroupId
+
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      BacktrackWindow: 86400 # Sets backtrack to 24 hours
+      BackupRetentionPeriod: 7 # Ensures daily snapshots are taken
+      Engine: aurora-mysql
+      EngineMode: global
+      DatabaseName: slurmaccounting
+      MasterUsername: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      StorageEncrypted: true
+
+  AuroraDBPrimaryInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.small
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      Engine: aurora-mysql
+      AutoMinorVersionUpgrade: true
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      PubliclyAccessible: false
+
+  HeadNodeParallelClusterIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource:
+              - !Ref OpenOnDemandSecrets
+              - !Ref AuroraMasterSecret
+              - !Ref ADAdministratorSecret
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:ListBucket
+            Resource:
+              - !GetAtt ClusterConfigBucket.Arn
+              - !Sub ${ClusterConfigBucket.Arn}/*
+              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}/*
+              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}
+          - Effect: Allow
+            Action:
+              - elasticfilesystem:ClientMount
+              - elasticfilesystem:ClientWrite
+              - elasticfilesystem:ClientRootAccess
+            Resource:
+              - !GetAtt SharedFileSystem.Arn
+          - Effect: Allow
+            Action:
+              - cloudformation:Describe* # TODO: Scope down
+              - cloudformation:List* # TODO: Scope down
+            Resource:
+              - !Ref AWS::StackId
+
+  ParallelClusterWorkerNodeIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - elasticfilesystem:ClientMount
+              - elasticfilesystem:ClientWrite
+              - elasticfilesystem:ClientRootAccess
+            Resource:
+              - !GetAtt SharedFileSystem.Arn
+          - Effect: Allow
+            Action:
+              - cloudformation:Describe* # TODO: Scope down
+              - cloudformation:List* # TODO: Scope down
+            Resource:
+              - !Ref AWS::StackId
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:ListBucket
+            Resource:
+              - !GetAtt ClusterConfigBucket.Arn
+              - !Sub ${ClusterConfigBucket.Arn}/*
+              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}/*
+              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}
+Outputs:
+  URL:
+    Description: URL
+    Value: !Sub http://${ALB.DNSName}
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+  PrivateSubnet1:
+    Description: Private Subnet ID
+    Value: !Ref PrivateSubnet1
+  ClusterConfigBucket:
+    Description: S3 Bucket where Cluster Configuration items are stored
+    Value: !Ref ClusterConfigBucket
+  DirectoryId:
+    Description: Directory ID
+    Value: !Ref SimpleAD
+  SecretId:
+    Description: Open OnDemand Secret ID
+    Value: !Ref OpenOnDemandSecrets
+  DBSecretId:
+    Description: DB Secret ARN
+    Value: !Ref AuroraMasterSecret
+  EFSMountId:
+    Description: EFS Mount ID
+    Value: !Ref SharedFileSystem
+  HeadNodeIAMPolicyArn:
+    Description: Parallel Cluster Head Node IAM ARN
+    Value: !Ref HeadNodeParallelClusterIAMPolicy
+  ComputeNodeIAMPolicyArn:
+    Description: Parallel Cluster Worker Node IAM ARN
+    Value: !Ref ParallelClusterWorkerNodeIAMPolicy
+  HeadNodeSecurityGroup:
+    Description: Additional Security Group for Parallel Cluster Head Nodes
+    Value: !Ref HeadNodeSecurityGroup
+  ComputeNodeSecurityGroup:
+    Description: Additional Security Group for Parallel Cluster Compute Nodes
+    Value: !Ref ComputeNodeSecurityGroup
+  LDAPNLBEndPoint:
+    Description: LDAP NLB End Point
+    Value: !Sub ldap://${NLB.DNSName}
+  ADAdministratorSecretARN:
+    Description: AD Admin Secret ARN
+    Value: !Ref ADAdministratorSecret
