@@ -16,11 +16,14 @@ Metadata:
         Parameters:
           - CertificateArn
           - WebsiteDomainName
+          - PortalAllowedIPCIDR
     ParameterLabels:
       DomainName:
         default: Domain  Name
       TopLevelDomain:
         default: Top level domain
+      PortalAllowedIPCIDR:
+        default: Portal Allowed IP CIDR
 Parameters:
   DomainName:
     Description:  Domain name not including the top level domain
