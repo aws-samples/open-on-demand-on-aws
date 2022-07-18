@@ -3,7 +3,7 @@
 #!/bin/bash
 
 # Install packages for domain
-yum -y install sssd realmd krb5-workstation samba-common-tools jq mysql amazon-efs-utils
+yum -y -q install sssd realmd krb5-workstation samba-common-tools jq mysql amazon-efs-utils
 REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)
 INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
 
