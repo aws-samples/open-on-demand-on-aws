@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 touch /var/log/install.txt
 
-yum install slurm slurm-devel slurm-slurmd slurm-slurmctld -y >> /var/log/install.txt
+yum install slurm slurm-devel slurm-slurmd slurm-slurmctld -y -q >> /var/log/install.txt
 
 mkdir /var/spool/slurmd
 chown slurm: /var/spool/slurmd

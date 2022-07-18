@@ -17,7 +17,6 @@ Metadata:
           - CertificateArn
           - WebsiteDomainName
           - PortalAllowedIPCIDR
-          - CertificateArn
     ParameterLabels:
       DomainName:
         default: Domain  Name
@@ -26,7 +25,7 @@ Metadata:
       PortalAllowedIPCIDR:
         default: Portal Allowed IP CIDR
       CertificateArn:
-        defautl: Certificate ARN
+        default: Certificate ARN
 Parameters:
   DomainName:
     Description:  Domain name not including the top level domain
@@ -324,7 +323,7 @@ Resources:
             Condition:
               StringEquals:
                 "s3:ResourceAccount": !Ref "AWS::AccountId"
-          - Effect: Allow # Allows access to bucket that contains SSM agent and cfn-bootstrap
+          - Effect: Allow # Allows access to buckets that contains various components of the solution
             Principal: "*"
             Action: "s3:*"
             Resource:
@@ -755,7 +754,7 @@ Resources:
                 dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y
                 dnf config-manager --set-enabled powertools -y
             configure_cert:
-              command: /etc/ood-install/scripts/configure_instance_cert.sh
+              command: /etc/ood-install/open-on-demand-on-aws-main/scripts/configure_instance_cert.sh
           sources:
             /etc/ood-install: https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/main.zip
           files: # Creates a file with appropriate variables for use in scripts. No secrets in here
@@ -788,41 +787,41 @@ Resources:
           commands:
             configure_cloudwatch:
               command: ./configure_cloudwatch_metrics.sh
-              cwd: /etc/ood-install/scripts
+              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
             join_domain:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./join_domain.sh
-              cwd: /etc/ood-install/scripts
+              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
             mount_efs:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./mount_efs.sh
-              cwd: /etc/ood-install/scripts
+              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
             configure_mkhomedir:
-              command: /etc/ood-install/scripts/configure_mkhomedir.sh
+              command: /etc/ood-install/open-on-demand-on-aws-main/scripts/configure_mkhomedir.sh
         slurm:
           commands:
             install_munge:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./install_munge.sh
-              cwd: /etc/ood-install/scripts
+              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
             install_slurm:
               command: ./install_slurm.sh
-              cwd: /etc/ood-install/scripts
+              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
             configure_accounting:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./configure_slurm_accounting.sh
-              cwd: /etc/ood-install/scripts
+              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
         ood:
           commands:
             ood_install:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./install_ood.sh
-              cwd: /etc/ood-install/scripts
+              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
     Properties:
       LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
       LaunchTemplateData:
@@ -847,8 +846,8 @@ Resources:
             dnf install -y https://s3.${AWS::Region}.amazonaws.com/amazon-ssm-${AWS::Region}/latest/linux_amd64/amazon-ssm-agent.rpm
             systemctl enable amazon-ssm-agent
             systemctl start amazon-ssm-agent
-            yum install -y epel-release
-            yum install -y python3
+            yum install -y -q epel-release
+            yum install -y -q python3
             cd /opt
             curl -O https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
             tar -xvpf aws-cfn-bootstrap-py3-latest.tar.gz
