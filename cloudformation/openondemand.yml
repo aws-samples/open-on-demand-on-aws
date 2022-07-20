@@ -1297,7 +1297,7 @@ Resources:
       GenerateSecretString:
         SecretStringTemplate: !Join ['', ['{"username": "admin"}']]
         GenerateStringKey: "password"
-        ExcludeCharacters: '"@/\'
+        ExcludeCharacters: '"@/\#'
         PasswordLength: 16
 
   SecretRDSInstanceAttachment:
