@@ -63,14 +63,16 @@ mkdir -p /shared/home
 
 # Script that we want to use when adding user
 cat << EOF >> /etc/ood/add_user.sh
-echo "Adding user \$1" >> /var/log/add_user.log
-sudo adduser \$1 --home /shared/home/\$1 >> /var/log/add_user.log
-mkdir -p /shared/home/\$1 >> /var/log/add_user.log
-chown \$1 /shared/home/\$1 >> /var/log/add_user.log
-echo "\$1 \$(id -u \$1)" >> /shared/userlistfile
-
+if ! id "\$1" &>/dev/null; then
+  echo "Adding user \$1" >> /var/log/add_user.log
+  sudo adduser \$1 --home /shared/home/\$1 >> /var/log/add_user.log
+  mkdir -p /shared/home/\$1 >> /var/log/add_user.log
+  chown \$1 /shared/home/\$1 >> /var/log/add_user.log
+  echo "\$1 \$(id -u \$1)" >> /shared/userlistfile
+fi
 echo \$1
 EOF
+
 
 echo "user_map_cmd: '/etc/ood/add_user.sh'" >> /etc/ood/config/ood_portal.yml
 
@@ -89,6 +91,7 @@ EOF
 
 chmod +x /etc/ood/add_user.sh
 chmod +x /shared/copy_users.sh
+chmod o+w /shared/userlistfile
 
 /opt/ood/ood-portal-generator/sbin/update_ood_portal
 systemctl enable httpd
