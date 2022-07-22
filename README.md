@@ -1,8 +1,9 @@
-## Open OnDemand on AWS with Parallel Cluster
+# Open OnDemand on AWS with Parallel Cluster
 
 This reference architecture provides a set of templates for deploying [Open OnDemand (OOD)](https://openondemand.org/) with [AWS CloudFormation](https://aws.amazon.com/cloudformation/) and integration points for [AWS Parallel Cluster](https://aws.amazon.com/hpc/parallelcluster/).
 
 ## Architecture
+
 ![architecture](images/architecture.png)
 
 The primary components of the solution are:
@@ -19,7 +20,6 @@ The primary components of the solution are:
 
 1. Route53 domain for your OOD portal
 1. Amazon Certificate Manager (ACM) public certificate for HTTPS on your OOD Portal
-
 
 ## Deployment
 
@@ -53,6 +53,7 @@ In your Parallel Cluster config, you must set the following values:
     1. OnNodeConfigured
         1. Script: S3 location of the `pcluster_worker_node.sh` file you uploaded
         1. Args: Open OnDemand CloudFormation stack name
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
