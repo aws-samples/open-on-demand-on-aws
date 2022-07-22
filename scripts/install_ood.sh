@@ -83,8 +83,8 @@ while read USERNAME USERID
 do
     # -M do not create home since head node is exporting /shared/home via NFS
     # -u to set UID to match what is set on the head node
-    if [ \$(grep -c '^$USERNAME:' /etc/passwd) -eq 0 ]; then
-        useradd -M -u \$USERID \$USERNAME
+    if [ \$(grep -c '^$USERNAME-local:' /etc/passwd) -eq 0 ]; then
+        useradd -M -u \$USERID \$USERNAME-local
     fi
 done < "/shared/userlistfile"
 EOF
