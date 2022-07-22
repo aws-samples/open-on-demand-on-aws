@@ -445,21 +445,21 @@ Resources:
         - Key: Name
           Value: !Sub '${AWS::StackName} - SecurityGroup'
 
+  PortalHeadNodeAccountingIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 6817
+      ToPort: 6820
+      Description: Allows inbound from Head Nodes for Slurm Accounting
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      SourceSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+
   PortalHeadNodeAccountingEgress:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
       IpProtocol: tcp
-      FromPort: 6819
-      ToPort: 6819
-      Description: Allows outbound to Head Nodes for Slurm Accounting
-      GroupId: !GetAtt PortalSecurityGroup.GroupId
-      DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
-
-  PortalHeadNodeSlurmEgress:
-    Type: AWS::EC2::SecurityGroupEgress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 6820
+      FromPort: 6817
       ToPort: 6820
       Description: Allows outbound to Head Nodes for Slurm Accounting
       GroupId: !GetAtt PortalSecurityGroup.GroupId
