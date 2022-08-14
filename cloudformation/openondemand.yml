@@ -1042,6 +1042,25 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  ClusterConfigBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ClusterConfigBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ForceSSLRequests
+            Action:
+              - 's3:*'
+            Effect: Deny
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${ClusterConfigBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${ClusterConfigBucket}/*
+            Principal: '*'
+            Condition:
+              Bool:
+                'aws:SecureTrnasport': "false"
+
   LoadBalancerLogBucket:
     Type: AWS::S3::Bucket
     Properties:
