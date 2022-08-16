@@ -1059,7 +1059,7 @@ Resources:
             Principal: '*'
             Condition:
               Bool:
-                'aws:SecureTrnasport': "false"
+                'aws:SecureTransport': "false"
 
   LoadBalancerLogBucket:
     Type: AWS::S3::Bucket
@@ -1116,7 +1116,7 @@ Resources:
             Principal: '*'
             Condition:
               Bool:
-                'aws:SecureTrnasport': "false"
+                'aws:SecureTransport': "false"
 
 
   NLB:
@@ -1296,7 +1296,7 @@ Resources:
             Principal: '*'
             Condition:
               Bool:
-                'aws:SecureTrnasport': "false"
+                'aws:SecureTransport': "false"
 
   CloudTrailDataTrail:
     DependsOn: DataTrailBucketPolicy
