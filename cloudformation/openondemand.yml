@@ -1106,6 +1106,18 @@ Resources:
             Condition:
               StringEquals:
                 's3:x-amz-acl': 'bucket-owner-full-control'
+          - Sid: ForceSSLRequests
+            Action:
+              - 's3:*'
+            Effect: Deny
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}/*
+            Principal: '*'
+            Condition:
+              Bool:
+                'aws:SecureTrnasport': "false"
+
 
   NLB:
     DependsOn: LoadBalancerLogBucketPolicy
@@ -1274,6 +1286,17 @@ Resources:
             Condition:
               StringEquals:
                 's3:x-amz-acl': 'bucket-owner-full-control'
+          - Sid: ForceSSLRequests
+            Action:
+              - 's3:*'
+            Effect: Deny
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${DataTrailBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${DataTrailBucket}/*
+            Principal: '*'
+            Condition:
+              Bool:
+                'aws:SecureTrnasport': "false"
 
   CloudTrailDataTrail:
     DependsOn: DataTrailBucketPolicy
