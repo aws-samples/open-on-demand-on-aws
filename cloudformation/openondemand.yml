@@ -744,7 +744,7 @@ Resources:
             configure_cert:
               command: /etc/ood-install/open-on-demand-on-aws-main/scripts/configure_instance_cert.sh
           sources:
-            /etc/ood-install: https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/main.zip
+            /etc/ood-install: https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/FEATURE_automatic_cert.zip
           files: # Creates a file with appropriate variables for use in scripts. No secrets in here
             /etc/ood-install/set_variables.sh:
               content: !Sub |
