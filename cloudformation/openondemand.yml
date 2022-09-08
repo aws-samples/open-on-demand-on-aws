@@ -12,10 +12,15 @@ Metadata:
           - DomainName
           - TopLevelDomain
       - Label:
-          default: Frontend
+          default: Portal
         Parameters:
           - WebsiteDomainName
           - PortalAllowedIPCIDR
+      - Label:
+          default: DNS Settings
+        Parameters:
+          - HostedZoneName
+          - HostedZoneId
     ParameterLabels:
       DomainName:
         default: Domain Name
@@ -49,10 +54,10 @@ Parameters:
     Description: Hosted zone for the domain
     Type: String
   HostedZoneId:
-    Description: Hosted Zone ID for Route53 Domain
+    Description: Hosted Zone Id for Route53 Domain
     Type: String
   PortalAllowedIPCIDR:
-    Description: IP CIDR for access to the Portal.
+    Description: IP CIDR for access to the Portal
     Type: String
     AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
     ConstraintDescription: must be a valid CIDR range of the form x.x.x.x/x.
