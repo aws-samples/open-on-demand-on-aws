@@ -18,14 +18,20 @@ Metadata:
           - PortalAllowedIPCIDR
     ParameterLabels:
       DomainName:
-        default: Domain  Name
+        default: Domain Name
       TopLevelDomain:
         default: Top level domain
       PortalAllowedIPCIDR:
         default: Portal Allowed IP CIDR
+      WebsiteDomainName:
+        default: Website Domain Name
+      HostedZoneName:
+        default: Hosted Zone Name
+      HostedZoneId:
+        default: Hosted Zone Id
 Parameters:
   DomainName:
-    Description:  Domain name not including the top level domain
+    Description: Domain name not including the top level domain
     Default: hpclab
     Type: String
     AllowedPattern: '[a-zA-Z0-9]+'
@@ -50,6 +56,10 @@ Parameters:
     Type: String
     AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
     ConstraintDescription: must be a valid CIDR range of the form x.x.x.x/x.
+  Branch:
+    Description: Branch of the code to deploy. Only use this when testing changes to the solution
+    Default: main
+    Type: String
 Mappings:
   RegionMap:
     us-east-1:
@@ -742,9 +752,9 @@ Resources:
                 dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y
                 dnf config-manager --set-enabled powertools -y
             configure_cert:
-              command: /etc/ood-install/open-on-demand-on-aws-main/scripts/configure_instance_cert.sh
+              command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_instance_cert.sh
           sources:
-            /etc/ood-install: https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/FEATURE_automatic_cert.zip
+            /etc/ood-install: !Sub https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
           files: # Creates a file with appropriate variables for use in scripts. No secrets in here
             /etc/ood-install/set_variables.sh:
               content: !Sub |
@@ -775,46 +785,46 @@ Resources:
           commands:
             configure_cloudwatch:
               command: ./configure_cloudwatch_metrics.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             join_domain:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./join_domain.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             mount_efs:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./mount_efs.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             configure_mkhomedir:
-              command: /etc/ood-install/open-on-demand-on-aws-main/scripts/configure_mkhomedir.sh
+              command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_mkhomedir.sh
             upload_pcluster_configs:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./upload_pcluster_configs.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
         slurm:
           commands:
             install_munge:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./install_munge.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             install_slurm:
               command: ./install_slurm.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             configure_accounting:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./configure_slurm_accounting.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
         ood:
           commands:
             ood_install:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./install_ood.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
     Properties:
       LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
       LaunchTemplateData:
