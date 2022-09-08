@@ -16,7 +16,7 @@ The primary components of the solution are:
 1. An Aurora MySQL database to store Slurm Accounting data
 1. Automation via Event Bridge to automatically register and deregister Parallel Cluster HPC Clusters with OOD
 
-## Prerqeuisites
+## Prerequisites
 
 1. Route53 domain for your OOD portal
 
