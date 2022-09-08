@@ -14,21 +14,24 @@ Metadata:
       - Label:
           default: Frontend
         Parameters:
-          - CertificateArn
           - WebsiteDomainName
           - PortalAllowedIPCIDR
     ParameterLabels:
       DomainName:
-        default: Domain  Name
+        default: Domain Name
       TopLevelDomain:
         default: Top level domain
       PortalAllowedIPCIDR:
         default: Portal Allowed IP CIDR
-      CertificateArn:
-        default: Certificate ARN
+      WebsiteDomainName:
+        default: Website Domain Name
+      HostedZoneName:
+        default: Hosted Zone Name
+      HostedZoneId:
+        default: Hosted Zone Id
 Parameters:
   DomainName:
-    Description:  Domain name not including the top level domain
+    Description: Domain name not including the top level domain
     Default: hpclab
     Type: String
     AllowedPattern: '[a-zA-Z0-9]+'
@@ -39,23 +42,24 @@ Parameters:
     MaxLength: '15'
     Default: local
     AllowedPattern: '[a-zA-Z0-9]+'
-  CertificateArn:
-    Description: ARN for ACM Certificate
-    Type: String
   WebsiteDomainName:
     Description: Domain name for world facing website
     Type: String
   HostedZoneName:
     Description: Hosted zone for the domain
     Type: String
-  ConfigFileBucketName:
-    Description: Config file bucket name for pcluster
+  HostedZoneId:
+    Description: Hosted Zone ID for Route53 Domain
     Type: String
   PortalAllowedIPCIDR:
     Description: IP CIDR for access to the Portal.
     Type: String
     AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
     ConstraintDescription: must be a valid CIDR range of the form x.x.x.x/x.
+  Branch:
+    Description: Branch of the code to deploy. Only use this when testing changes to the solution
+    Default: main
+    Type: String
 Mappings:
   RegionMap:
     us-east-1:
@@ -71,6 +75,15 @@ Mappings:
       AMIID: ami-056c679fab9e48d8a
       ALBLogAccount: 797873946194
 Resources:
+
+  OODCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref WebsiteDomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - HostedZoneId: !Ref HostedZoneId
+          DomainName: !Ref WebsiteDomainName
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -643,14 +656,6 @@ Resources:
               - !Sub ${ClusterConfigBucket.Arn}/*
           - Effect: Allow
             Action:
-              - s3:GetObject
-              - s3:PutObject
-              - s3:ListBucket
-            Resource:
-              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}/*
-              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}
-          - Effect: Allow
-            Action:
               - elasticfilesystem:ClientMount
               - elasticfilesystem:ClientWrite
               - elasticfilesystem:ClientRootAccess
@@ -725,13 +730,6 @@ Resources:
   OpenOnDemandLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Metadata:
-      AWS::CloudFormation::Authentication:
-        rolebased:
-          type: S3
-          buckets:
-            - !Ref ConfigFileBucketName
-          roleName: !Ref OODInstanceRole
-      # TODO: Add wait condition notification when done
       AWS::CloudFormation::Init:
         configSets:
           config:
@@ -754,9 +752,9 @@ Resources:
                 dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y
                 dnf config-manager --set-enabled powertools -y
             configure_cert:
-              command: /etc/ood-install/open-on-demand-on-aws-main/scripts/configure_instance_cert.sh
+              command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_instance_cert.sh
           sources:
-            /etc/ood-install: https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/main.zip
+            /etc/ood-install: !Sub https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
           files: # Creates a file with appropriate variables for use in scripts. No secrets in here
             /etc/ood-install/set_variables.sh:
               content: !Sub |
@@ -787,41 +785,46 @@ Resources:
           commands:
             configure_cloudwatch:
               command: ./configure_cloudwatch_metrics.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             join_domain:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./join_domain.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             mount_efs:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./mount_efs.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             configure_mkhomedir:
-              command: /etc/ood-install/open-on-demand-on-aws-main/scripts/configure_mkhomedir.sh
+              command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_mkhomedir.sh
+            upload_pcluster_configs:
+              command: |
+                . /etc/ood-install/set_variables.sh
+                ./upload_pcluster_configs.sh
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
         slurm:
           commands:
             install_munge:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./install_munge.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             install_slurm:
               command: ./install_slurm.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             configure_accounting:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./configure_slurm_accounting.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
         ood:
           commands:
             ood_install:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./install_ood.sh
-              cwd: /etc/ood-install/open-on-demand-on-aws-main/scripts
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
     Properties:
       LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
       LaunchTemplateData:
@@ -1000,7 +1003,7 @@ Resources:
           TargetGroupArn: !Ref OpenOnDemandTargetGroupHTTPS
       LoadBalancerArn: !Ref ALB
       Certificates:
-        - CertificateArn: !Ref CertificateArn
+        - CertificateArn: !Ref OODCertificate
       Port: 443
       Protocol: "HTTPS"
       SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
@@ -1026,7 +1029,7 @@ Resources:
       LoadBalancerArn: !Ref ALB
       Port: 5554
       Certificates:
-        - CertificateArn: !Ref CertificateArn
+        - CertificateArn: !Ref OODCertificate
       Protocol: "HTTPS"
       SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
 
@@ -1446,8 +1449,6 @@ Resources:
             Resource:
               - !GetAtt ClusterConfigBucket.Arn
               - !Sub ${ClusterConfigBucket.Arn}/*
-              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}/*
-              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}
           - Effect: Allow
             Action:
               - elasticfilesystem:ClientMount
@@ -1457,8 +1458,8 @@ Resources:
               - !GetAtt SharedFileSystem.Arn
           - Effect: Allow
             Action:
-              - cloudformation:Describe* # TODO: Scope down
-              - cloudformation:List* # TODO: Scope down
+              - cloudformation:Describe*
+              - cloudformation:List*
             Resource:
               - !Ref AWS::StackId
 
@@ -1489,8 +1490,6 @@ Resources:
             Resource:
               - !GetAtt ClusterConfigBucket.Arn
               - !Sub ${ClusterConfigBucket.Arn}/*
-              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}/*
-              - !Sub arn:${AWS::Partition}:s3:::${ConfigFileBucketName}
 Outputs:
   URL:
     Description: URL

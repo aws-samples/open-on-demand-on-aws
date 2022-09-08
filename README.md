@@ -19,7 +19,6 @@ The primary components of the solution are:
 ## Prerqeuisites
 
 1. Route53 domain for your OOD portal
-1. Amazon Certificate Manager (ACM) public certificate for HTTPS on your OOD Portal
 
 ## Deployment
 
@@ -35,8 +34,6 @@ Once deployed, you should be able to navigate to the URL you set up as a CloudFo
 
 The OOD solution is built so that a Parallel Cluster HPC Cluster can be created and automatically registered with the portal.
 
-First, upload both `pcluster_head_node.sh` and `pcluster_worker_node.sh` from the `scripts` folder to an S3 bucket.
-
 In your Parallel Cluster config, you must set the following values:
 
 1. HeadNode:
@@ -44,14 +41,14 @@ In your Parallel Cluster config, you must set the following values:
     1. AdditionalScurityGroups: HeadNodeSecurityGroup from CloudFormation Outputs
     1. AdditionalIAMPolicies: HeadNodeIAMPolicyArn from CloudFormation Outputs
     1. OnNodeConfigured
-        1. Script: S3 Location of the `pcluster_head_node.sh` file you uploaded
+        1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_head_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
 1. SlurmQueues:
     1. SubnetId: PrivateSubnet1 from OOD Stack Output
     1. AdditionalScurityGroups: ComputeNodeSecurityGroup from CloudFormation Outputs
     1. AdditionalIAMPolicies: ComputeNodeIAMPolicyArn from CloudFormation Outputs
     1. OnNodeConfigured
-        1. Script: S3 location of the `pcluster_worker_node.sh` file you uploaded
+        1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
 
 ## Security
