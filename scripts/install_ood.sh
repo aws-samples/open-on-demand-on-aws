@@ -205,7 +205,7 @@ if __name__ == '__main__':
   main()
 EOF
 
-
+chmod +x /etc/ood/config/bin_overrides.py
 #Edit sudoers to allow apache to add users
 echo "apache  ALL=/sbin/adduser" >> /etc/sudoers
 reboot
