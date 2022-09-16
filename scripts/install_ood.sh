@@ -69,8 +69,8 @@ if ! id "\$1" &>/dev/null; then
   mkdir -p /shared/home/\$1 >> /var/log/add_user.log
   chown \$1 /shared/home/\$1 >> /var/log/add_user.log
   echo "\$1 \$(id -u \$1)" >> /shared/userlistfile
-  su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
-  su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
+  sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
+  sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
   chmod 600 /shared/home/\$1/.ssh/*
 fi
 echo \$1
@@ -208,4 +208,5 @@ EOF
 chmod +x /etc/ood/config/bin_overrides.py
 #Edit sudoers to allow apache to add users
 echo "apache  ALL=/sbin/adduser" >> /etc/sudoers
+echo "apache  ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 reboot
