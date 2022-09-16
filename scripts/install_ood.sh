@@ -69,12 +69,9 @@ if ! id "\$1" &>/dev/null; then
   mkdir -p /shared/home/\$1 >> /var/log/add_user.log
   chown \$1 /shared/home/\$1 >> /var/log/add_user.log
   echo "\$1 \$(id -u \$1)" >> /shared/userlistfile
-  su \$1
-  cd ~
-  ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""
-  cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
-  chmod 600 ~/.ssh/*
-  exit
+  su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
+  su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
+  chmod 600 /shared/home/$1/.ssh/*
 fi
 echo \$1
 EOF
