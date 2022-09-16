@@ -71,7 +71,7 @@ if ! id "\$1" &>/dev/null; then
   echo "\$1 \$(id -u \$1)" >> /shared/userlistfile
   su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
   su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
-  chmod 600 /shared/home/$1/.ssh/*
+  chmod 600 /shared/home/\$1/.ssh/*
 fi
 echo \$1
 EOF
@@ -84,10 +84,9 @@ echo "user_map_cmd: '/etc/ood/add_user.sh'" >> /etc/ood/config/ood_portal.yml
 cat << EOF >> /shared/copy_users.sh
 while read USERNAME USERID
 do
-    # -M do not create home since head node is exporting /shared/home via NFS
     # -u to set UID to match what is set on the head node
     if [ \$(grep -c '^\$USERNAME-local:' /etc/passwd) -eq 0 ]; then
-        useradd -M -u \$USERID \$USERNAME-local
+        useradd -u \$USERID \$USERNAME-local -d /shared/home/\$USERNAME
     fi
 done < "/shared/userlistfile"
 EOF
@@ -99,6 +98,113 @@ chmod o+w /shared/userlistfile
 /opt/ood/ood-portal-generator/sbin/update_ood_portal
 systemctl enable httpd
 systemctl enable ondemand-dex
+
+# install bin overrides so sbatch executes on remote node
+pip3 install sh pyyaml
+#create sbatch log
+touch /var/log/sbatch.log
+chmod 666 /var/log/sbatch.log
+
+# Create this bin overrides script on the box: https://osc.github.io/ood-documentation/latest/installation/resource-manager/bin-override-example.html
+cat << EOF >> /etc/ood/config/bin_overrides.py
+#!/bin/python3
+from getpass import getuser
+from select import select
+from sh import ssh, ErrorReturnCode
+import logging
+import os
+import re
+import sys
+import yaml
+
+'''
+An example of a `bin_overrides` replacing Slurm `sbatch` for use with Open OnDemand.
+Executes sbatch on the target cluster vs OOD node to get around painful experiences with sbatch + EFA.
+
+Requirements:
+
+- $USER must be able to SSH from web node to submit node without using a password
+'''
+logging.basicConfig(filename='/var/log/sbatch.log', level=logging.INFO)
+
+USER = os.environ['USER']
+LOCAL_USER=USER+"-local"
+
+
+def run_remote_sbatch(script,host_name, *argv):
+  """
+  @brief      SSH and submit the job from the submission node
+
+  @param      script (str)  The script
+  @parma      host_name (str) The hostname of the head node on which to execute the script
+  @param      argv (list<str>)    The argument vector for sbatch
+
+  @return     output (str) The merged stdout/stderr of the remote sbatch call
+  """
+
+  output = None
+
+  try:
+    result = ssh(
+      '@'.join([LOCAL_USER, host_name]),
+      '-oBatchMode=yes',  # ensure that SSH does not hang waiting for a password that will never be sent
+      '/opt/slurm/bin/sbatch',  # the real sbatch on the remote
+      *argv,  # any arguments that sbatch should get
+      _in=script,  # redirect the script's contents into stdin
+      _err_to_out=True  # merge stdout and stderr
+    )
+
+    output = result.stdout.decode('utf-8')
+    logging.info(output)
+  except ErrorReturnCode as e:
+    output = e.stdout.decode('utf-8')
+    logging.error(output)
+    print(output)
+    sys.exit(e.exit_code)
+
+  return output
+
+def load_script():
+  """
+  @brief      Loads a script from stdin.
+
+  With OOD and Slurm the user's script is read from disk and passed to sbatch via stdin
+  https://github.com/OSC/ood_core/blob/5b4d93636e0968be920cf409252292d674cc951d/lib/ood_core/job/adapters/slurm.rb#L138-L148
+
+  @return     script (str) The script content
+  """
+  # Do not hang waiting for stdin that is not coming
+  if not select([sys.stdin], [], [], 0.0)[0]:
+    logging.error('No script available on stdin!')
+    sys.exit(1)
+
+  return sys.stdin.read()
+
+def get_cluster_host(cluster_name):
+  with open(f"/etc/ood/config/clusters.d/{cluster_name}.yml", "r") as stream:
+    try:
+      config_file=yaml.safe_load(stream)
+    except yaml.YAMLError as e:
+      logging.error(e)
+  return config_file["v2"]["login"]["host"]
+
+def main():
+  """
+  @brief SSHs from web node to submit node and executes the remote sbatch.
+  """
+  host_name=get_cluster_host(sys.argv[-1])
+  output = run_remote_sbatch(
+    load_script(),
+    host_name,
+    sys.argv[1:]
+  )
+
+  print(output)
+
+if __name__ == '__main__':
+  main()
+EOF
+
 
 #Edit sudoers to allow apache to add users
 echo "apache  ALL=/sbin/adduser" >> /etc/sudoers

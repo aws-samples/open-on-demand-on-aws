@@ -56,14 +56,7 @@ rm -f /var/spool/slurm.state/clustername
 sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config
 service sshd restart
 
-# Provided in Pcluster v2, not sure if it is in v3
-# defines "stack_name" for the cluster (cfn stack name)
-source "/etc/parallelcluster/cfnconfig"
-
 export SLURM_VERSION=$(. /etc/profile && sinfo --version | cut -d' ' -f 2)
-# Override SLURM to use long cluster name (based on pcluster scheme).
-# This allows later clusters with same name to "restore" accounting
-# ${stack_name} comes from /etc/paralelcluster/cfnconfig
 sed -i "s/ClusterName=.*$/ClusterName=$STACK_NAME/" /opt/slurm/etc/slurm.conf
 
 mkdir -p /etc/ood/config/clusters.d
@@ -79,6 +72,8 @@ v2:
     adapter: "slurm"
     cluster: "$STACK_NAME"
     bin: "/bin"
+    bin_overrides:
+      sbatch: "/etc/ood/config/bin_overrides.py"
 EOF
 
 cat << EOF > /opt/slurm/etc/slurmdbd.conf
