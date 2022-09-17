@@ -148,6 +148,7 @@ def run_remote_sbatch(script,host_name, *argv):
     result = ssh(
       '@'.join([LOCAL_USER, host_name]),
       '-oBatchMode=yes',  # ensure that SSH does not hang waiting for a password that will never be sent
+      '-oStrictHostKeyChecking=no',
       '/opt/slurm/bin/sbatch',  # the real sbatch on the remote
       *argv,  # any arguments that sbatch should get
       _in=script,  # redirect the script's contents into stdin
