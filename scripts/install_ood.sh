@@ -63,17 +63,17 @@ mkdir -p /shared/home
 
 # Script that we want to use when adding user
 cat << EOF >> /etc/ood/add_user.sh
-if ! id "\$1" &>/dev/null; then
-  echo "Adding user \$1" >> /var/log/add_user.log
-  sudo adduser \$1 --home /shared/home/\$1 >> /var/log/add_user.log
+if ! id "\$1-local" &>/dev/null; then
+  echo "Adding user \$1-local" >> /var/log/add_user.log
+  sudo adduser \$1-local --home /shared/home/\$1 >> /var/log/add_user.log
   mkdir -p /shared/home/\$1 >> /var/log/add_user.log
   chown \$1 /shared/home/\$1 >> /var/log/add_user.log
   echo "\$1 \$(id -u \$1)" >> /shared/userlistfile
-  sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
-  sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
+  sudo su \$1-local -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
+  sudo su \$1-local -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
   chmod 600 /shared/home/\$1/.ssh/*
 fi
-echo \$1
+echo \$1-local
 EOF
 
 
