@@ -830,6 +830,11 @@ Resources:
                 . /etc/ood-install/set_variables.sh
                 ./install_ood.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
+        spack:
+          commands:
+            install_spack:
+              command:  ./install_spack.sh
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
     Properties:
       LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
       LaunchTemplateData:
