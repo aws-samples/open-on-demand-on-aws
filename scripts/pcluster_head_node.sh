@@ -38,6 +38,9 @@ mkdir /shared
 echo "$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
 mount -a
 
+# Add spack-users group
+groupadd spack-users -g 4000
+
 /shared/copy_users.sh
 
 #This line allows the users to login without the domain name

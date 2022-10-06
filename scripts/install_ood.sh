@@ -66,6 +66,7 @@ cat << EOF >> /etc/ood/add_user.sh
 if ! id "\$1-local" &>/dev/null; then
   echo "Adding user \$1-local" >> /var/log/add_user.log
   sudo adduser \$1-local --home /shared/home/\$1 >> /var/log/add_user.log
+  usermod -a -G spack-users \$1-local
   mkdir -p /shared/home/\$1 >> /var/log/add_user.log
   chown \$1-local /shared/home/\$1 >> /var/log/add_user.log
   echo "\$1 \$(id -u \$1-local)" >> /shared/userlistfile
@@ -87,6 +88,7 @@ do
     # -u to set UID to match what is set on the head node
     if [ \$(grep -c '^\$USERNAME-local:' /etc/passwd) -eq 0 ]; then
         useradd -u \$USERID \$USERNAME-local -d /shared/home/\$USERNAME
+        usermod -a -G spack-users \$USERNAME-local
     fi
 done < "/shared/userlistfile"
 EOF

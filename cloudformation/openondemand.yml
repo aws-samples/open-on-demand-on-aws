@@ -756,6 +756,7 @@ Resources:
                 sed -i "s/SELINUX=enforcing/SELINUX=permissive/" /etc/selinux/config
                 dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y
                 dnf config-manager --set-enabled powertools -y
+                groupadd spack-users -g 4000
             configure_cert:
               command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_instance_cert.sh
           sources:
