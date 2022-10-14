@@ -51,3 +51,5 @@ spack config --scope site add "modules:default:tcl:openmpi:environment:set:OMPI_
 spack config --scope site add "modules:default:tcl:intel-oneapi-mpi:environment:set:SLURM_MPI_TYPE: 'pmi2'"
 spack config --scope site add "modules:default:tcl:mpich:environment:set:SLURM_MPI_TYPE: 'pmi2'"
 
+spack mirror add binary_mirror https://binaries.spack.io/develop
+spack buildcache keys --install --trust

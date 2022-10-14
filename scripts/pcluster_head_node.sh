@@ -157,6 +157,7 @@ systemctl start slurmdbd
 sacctmgr add cluster $STACK_NAME
 systemctl restart slurmctld
 systemctl restart slurmdbd
+systemctl restart slurmctld # TODO: Investigate why this fixes clusters not registered issues
 
 aws s3 cp /etc/ood/config/clusters.d/$STACK_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$STACK_NAME.yml
 
