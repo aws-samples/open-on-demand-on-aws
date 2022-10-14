@@ -130,8 +130,6 @@ Requirements:
 logging.basicConfig(filename='/var/log/sbatch.log', level=logging.INFO)
 
 USER = os.environ['USER']
-LOCAL_USER=USER+"-local"
-
 
 def run_remote_sbatch(script,host_name, *argv):
   """
@@ -148,7 +146,7 @@ def run_remote_sbatch(script,host_name, *argv):
 
   try:
     result = ssh(
-      '@'.join([LOCAL_USER, host_name]),
+      '@'.join([USER, host_name]),
       '-oBatchMode=yes',  # ensure that SSH does not hang waiting for a password that will never be sent
       '-oStrictHostKeyChecking=no',
       '/opt/slurm/bin/sbatch',  # the real sbatch on the remote

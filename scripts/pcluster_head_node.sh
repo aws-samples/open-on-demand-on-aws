@@ -153,8 +153,8 @@ EOF
 systemctl enable slurmdbd
 systemctl start slurmdbd
 
-# Join federation
-sacctmgr modify cluster $STACK_NAME set federation=ood-cluster -i
+# Add cluster to slurm accounting
+sacctmgr add cluster $STACK_NAME
 systemctl restart slurmctld
 systemctl restart slurmdbd
 
