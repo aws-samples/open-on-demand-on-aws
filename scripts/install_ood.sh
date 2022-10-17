@@ -87,7 +87,7 @@ while read USERNAME USERID
 do
     # -u to set UID to match what is set on the head node
     if [ \$(grep -c '^\$USERNAME-local:' /etc/passwd) -eq 0 ]; then
-        useradd -u \$USERID \$USERNAME-local -d /shared/home/\$USERNAME
+        useradd -M -u \$USERID \$USERNAME-local -d /shared/home/\$USERNAME
         usermod -a -G spack-users \$USERNAME-local
     fi
 done < "/shared/userlistfile"

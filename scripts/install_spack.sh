@@ -5,9 +5,17 @@ cd /shared
 mkdir spack
 chgrp spack-users /shared/spack
 chmod g+swrx /shared/spack
+
 git clone https://github.com/spack/spack
 
 . /shared/spack/share/spack/setup-env.sh
+
+spack mirror add binary_mirror https://binaries.spack.io/develop
+spack buildcache keys --install --trust
+
+chmod -R g+wrx /shared/spack
+chown -R :spack-users /shared/spack
+
 cat << EOF > $SPACK_ROOT/etc/spack/packages.yaml
 packages:
     intel-mpi:
@@ -50,6 +58,3 @@ spack config --scope site add "modules:default:tcl:openmpi:environment:set:SLURM
 spack config --scope site add "modules:default:tcl:openmpi:environment:set:OMPI_MCA_btl_tcp_if_exclude: 'lo,docker0,virbr0'"
 spack config --scope site add "modules:default:tcl:intel-oneapi-mpi:environment:set:SLURM_MPI_TYPE: 'pmi2'"
 spack config --scope site add "modules:default:tcl:mpich:environment:set:SLURM_MPI_TYPE: 'pmi2'"
-
-spack mirror add binary_mirror https://binaries.spack.io/develop
-spack buildcache keys --install --trust
