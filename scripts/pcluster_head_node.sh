@@ -38,6 +38,9 @@ mkdir /shared
 echo "$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
 mount -a
 
+# Add spack-users group
+groupadd spack-users -g 4000
+
 /shared/copy_users.sh
 
 #This line allows the users to login without the domain name
@@ -150,10 +153,11 @@ EOF
 systemctl enable slurmdbd
 systemctl start slurmdbd
 
-# Join federation
-sacctmgr modify cluster $STACK_NAME set federation=ood-cluster -i
+# Add cluster to slurm accounting
+sacctmgr add cluster $STACK_NAME
 systemctl restart slurmctld
 systemctl restart slurmdbd
+systemctl restart slurmctld # TODO: Investigate why this fixes clusters not registered issues
 
 aws s3 cp /etc/ood/config/clusters.d/$STACK_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$STACK_NAME.yml
 
