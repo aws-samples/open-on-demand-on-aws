@@ -3,7 +3,7 @@
 dnf module enable ruby:2.7 -y
 dnf module enable nodejs:12 -y
 
-yum install https://yum.osc.edu/ondemand/2.0/ondemand-release-web-2.0-1.noarch.rpm -y -q
+# yum install https://yum.osc.edu/ondemand/2.0/ondemand-release-web-2.0-1.noarch.rpm -y -q
 
 yum install openssl ondemand-2.0.28 ondemand-selinux ondemand-dex krb5-workstation samba-common-tools amazon-efs-utils -y -q
 
