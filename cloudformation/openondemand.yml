@@ -359,16 +359,6 @@ Resources:
       GroupDescription: Security Group for ALB
       SecurityGroupIngress:
         - CidrIp: !Ref PortalAllowedIPCIDR
-          FromPort: 5556
-          ToPort: 5556
-          IpProtocol: tcp
-          Description: OpenDEX Auth URL
-        - CidrIp: !Ref PortalAllowedIPCIDR
-          FromPort: 5554
-          ToPort: 5554
-          IpProtocol: tcp
-          Description: OpenDEX Auth URL
-        - CidrIp: !Ref PortalAllowedIPCIDR
           FromPort: 443
           ToPort: 443
           IpProtocol: tcp
@@ -381,26 +371,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName} - ALB SecurityGroup'
-
-  ALBSecurityGroupEgressDEX:
-    Type: AWS::EC2::SecurityGroupEgress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 5556
-      ToPort: 5556
-      Description: OpenDEX Auth URL
-      GroupId: !GetAtt ALBSecurityGroup.GroupId
-      DestinationSecurityGroupId: !GetAtt PortalSecurityGroup.GroupId
-
-  ALBSecurityGroupEgressDEXSSL:
-    Type: AWS::EC2::SecurityGroupEgress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 5554
-      ToPort: 5554
-      Description: OpenDEX Auth URL
-      GroupId: !GetAtt ALBSecurityGroup.GroupId
-      DestinationSecurityGroupId: !GetAtt PortalSecurityGroup.GroupId
 
   ALBSecurityGroupEgressHTTP:
     Type: AWS::EC2::SecurityGroupEgress
@@ -428,16 +398,6 @@ Resources:
       GroupDescription: Security Group for OOD Portal Cluster
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        - SourceSecurityGroupId: !Ref ALBSecurityGroup
-          FromPort: 5556
-          ToPort: 5556
-          IpProtocol: tcp
-          Description: OpenDEX Auth URL
-        - SourceSecurityGroupId: !Ref ALBSecurityGroup
-          FromPort: 5554
-          ToPort: 5554
-          IpProtocol: tcp
-          Description: OpenDEX Auth URL
         - SourceSecurityGroupId: !Ref ALBSecurityGroup
           FromPort: 80
           ToPort: 80
@@ -553,16 +513,6 @@ Resources:
       Description: Allows outbound from portal to LDAP
       GroupId: !GetAtt PortalSecurityGroup.GroupId
       CidrIp: 10.0.0.0/16
-
-  PortalHeadNodeDexMetadata:
-    Type: AWS::EC2::SecurityGroupEgress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 5554
-      ToPort: 5554
-      Description: Allows outbound from portal to Dex metadata endpoint
-      GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 0.0.0.0/0
 
   PortalHeadNodeSSHEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -903,7 +853,6 @@ Resources:
         - !Ref PrivateSubnet2
       TargetGroupARNs:
         - !Ref OpenOnDemandTargetGroupHTTPS
-        - !Ref OpenOnDemandDEXTargetGroup
       Tags:
         - Key: Name
           Value: !Sub OpenOnDemand Portal - ${AWS::StackName}-cfn-init
@@ -1016,31 +965,6 @@ Resources:
       Certificates:
         - CertificateArn: !Ref OODCertificate
       Port: 443
-      Protocol: "HTTPS"
-      SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
-
-  OpenOnDemandDEXTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckEnabled: true
-      HealthCheckIntervalSeconds: 6
-      HealthCheckTimeoutSeconds: 5
-      HealthCheckPath: /.well-known/openid-configuration
-      TargetType: instance
-      Protocol: HTTPS
-      Port: 5554
-      VpcId: !Ref VPC
-
-  OpenOnDemandDEXListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref OpenOnDemandDEXTargetGroup
-      LoadBalancerArn: !Ref ALB
-      Port: 5554
-      Certificates:
-        - CertificateArn: !Ref OODCertificate
       Protocol: "HTTPS"
       SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
 

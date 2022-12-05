@@ -20,8 +20,8 @@ ssl:
 EOF
 
 cat << EOF >> /etc/ood/config/ood_portal.yml
+dex_uri: /dex
 dex:
-    client_id: $WEBSITE_DOMAIN
     ssl: true
     connectors:
         - type: ldap
