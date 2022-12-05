@@ -5,7 +5,7 @@ dnf module enable nodejs:12 -y
 
 # yum install https://yum.osc.edu/ondemand/2.0/ondemand-release-web-2.0-1.noarch.rpm -y -q
 
-yum install openssl ondemand-2.0.28 ondemand-selinux ondemand-dex krb5-workstation samba-common-tools amazon-efs-utils -y -q
+yum install openssl ondemand-2.0.28 ondemand-selinux-2.0.28 ondemand-dex krb5-workstation samba-common-tools amazon-efs-utils -y -q
 
 export AD_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_SECRET_ID --query SecretString --output text)
 export AD_PASSWORD=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_PASSWORD --query SecretString --output text)
