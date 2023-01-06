@@ -742,11 +742,6 @@ Resources:
             configure_cloudwatch:
               command: ./configure_cloudwatch_metrics.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
-            join_domain:
-              command: |
-                . /etc/ood-install/set_variables.sh
-                ./join_domain.sh
-              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             mount_efs:
               command: |
                 . /etc/ood-install/set_variables.sh

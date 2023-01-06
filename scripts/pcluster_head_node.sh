@@ -13,11 +13,9 @@ OOD_STACK=$(aws cloudformation describe-stacks --stack-name $OOD_STACK_NAME --re
 
 STACK_NAME=$(aws ec2 describe-instances --instance-id=$INSTANCE_ID --region $REGION --query 'Reservations[].Instances[].Tags[?Key==`parallelcluster:cluster-name`].Value' --output text)
 OOD_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="SecretId") | .OutputValue')
-AD_PASSWORD_SECRET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ADAdministratorSecretARN") | .OutputValue')
 RDS_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="DBSecretId") | .OutputValue')
 EFS_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
 
-export AD_SECRET=$(aws secretsmanager --region $REGION get-secret-value --secret-id $OOD_SECRET_ID --query SecretString --output text)
 export S3_CONFIG_BUCKET=$(echo $AD_SECRET | jq -r ".ClusterConfigBucket")
 export DOMAIN_NAME=$(echo $AD_SECRET | jq -r ".DomainName")
 export TOP_LEVEL_DOMAIN=$(echo $AD_SECRET | jq -r ".TopLevelDomain")
@@ -27,11 +25,6 @@ export RDS_USER=$(echo $RDS_SECRET | jq -r ".username")
 export RDS_PASSWORD=$(echo $RDS_SECRET | jq -r ".password")
 export RDS_ENDPOINT=$(echo $RDS_SECRET | jq -r ".host")
 export RDS_PORT=$(echo $RDS_SECRET | jq -r ".port")
-
-export AD_PASSWORD=$(aws secretsmanager --region $REGION get-secret-value --secret-id $AD_PASSWORD_SECRET --query SecretString --output text)
-
-# Join head node to the domain; PCluster doesn't do this by default
-echo $AD_PASSWORD | realm join -v -U Administrator $DOMAIN_NAME.$TOP_LEVEL_DOMAIN --install=/
 
 # Add entry for fstab so mounts on restart
 mkdir /shared
