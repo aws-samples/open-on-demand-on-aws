@@ -15,10 +15,7 @@ STACK_NAME=$(aws ec2 describe-instances --instance-id=$INSTANCE_ID --region $REG
 OOD_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="SecretId") | .OutputValue')
 RDS_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="DBSecretId") | .OutputValue')
 EFS_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
-
-export S3_CONFIG_BUCKET=$(echo $AD_SECRET | jq -r ".ClusterConfigBucket")
-export DOMAIN_NAME=$(echo $AD_SECRET | jq -r ".DomainName")
-export TOP_LEVEL_DOMAIN=$(echo $AD_SECRET | jq -r ".TopLevelDomain")
+S3_CONFIG_BUCKET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
 
 export RDS_SECRET=$(aws secretsmanager --region $REGION get-secret-value --secret-id $RDS_SECRET_ID --query SecretString --output text)
 export RDS_USER=$(echo $RDS_SECRET | jq -r ".username")

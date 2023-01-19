@@ -18,6 +18,8 @@ The primary components of the solution are:
 
 ## Prerequisites
 
+This solution was tested with PCluster version 3.3.1
+
 1. Route53 domain for your OOD portal
 
 ## Deployment
