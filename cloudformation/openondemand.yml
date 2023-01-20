@@ -308,19 +308,6 @@ Resources:
       RouteTableId: !Ref PrivateRouteTable2
       SubnetId: !Ref PrivateSubnet2
 
-  DHCPOptionSet:
-    Type: AWS::EC2::DHCPOptions
-    Properties:
-        DomainName: !Sub ${DomainName}.${TopLevelDomain}
-        DomainNameServers:
-          - !Join [",", [!Select [0, !GetAtt SimpleAD.DnsIpAddresses], !Select [1, !GetAtt SimpleAD.DnsIpAddresses]]]
-
-  DHCPOptionSetAssociation:
-    Type: AWS::EC2::VPCDHCPOptionsAssociation
-    Properties:
-      DhcpOptionsId: !Ref DHCPOptionSet
-      VpcId: !Ref VPC
-
   S3Endpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:

@@ -3,7 +3,7 @@
 #!/bin/bash
 
 # Install packages for domain
-yum -y -q install sssd realmd krb5-workstation samba-common-tools jq mysql amazon-efs-utils
+yum -y -q install jq mysql amazon-efs-utils
 REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)
 INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
 
@@ -33,15 +33,8 @@ groupadd spack-users -g 4000
 
 /shared/copy_users.sh
 
-#This line allows the users to login without the domain name
-sed -i 's/use_fully_qualified_names = True/use_fully_qualified_names = False/g' /etc/sssd/sssd.conf
-#This line configure sssd to create the home directories in the shared folder
-sed -i 's/fallback_homedir = \/home\/%u/fallback_homedir = \/shared\/%u/' -i /etc/sssd/sssd.conf
-# sed -i '/fallback_homedir/c\fallback_homedir = /home/%u' /etc/sssd/sssd.conf
-sleep 1
-systemctl restart sssd
 # This line is required for AWS Parallel Cluster to understand correctly the custom domain
-sed -i "s/--fail \${local_hostname_url}/--fail \${local_hostname_url} | awk '{print \$1}'/g" /opt/parallelcluster/scripts/compute_ready
+# sed -i "s/--fail \${local_hostname_url}/--fail \${local_hostname_url} | awk '{print \$1}'/g" /opt/parallelcluster/scripts/compute_ready
 
 
 ## Remove slurm cluster name; will be repopulated when instance restarts
@@ -150,5 +143,3 @@ systemctl restart slurmdbd
 systemctl restart slurmctld # TODO: Investigate why this fixes clusters not registered issues
 
 aws s3 cp /etc/ood/config/clusters.d/$STACK_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$STACK_NAME.yml
-
-systemctl restart sssd
