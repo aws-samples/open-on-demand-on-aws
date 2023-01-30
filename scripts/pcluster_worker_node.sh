@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 #!/bin/bash
 
-yum -y -q install sssd realmd krb5-workstation samba-common-tools jq mysql amazon-efs-utils
+yum -y -q install jq mysql amazon-efs-utils
 # Get OOD Stack data
 OOD_STACK_NAME=$1
 REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)

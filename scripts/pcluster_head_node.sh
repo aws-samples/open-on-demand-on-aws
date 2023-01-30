@@ -33,10 +33,6 @@ groupadd spack-users -g 4000
 
 /shared/copy_users.sh
 
-# This line is required for AWS Parallel Cluster to understand correctly the custom domain
-# sed -i "s/--fail \${local_hostname_url}/--fail \${local_hostname_url} | awk '{print \$1}'/g" /opt/parallelcluster/scripts/compute_ready
-
-
 ## Remove slurm cluster name; will be repopulated when instance restarts
 rm -f /var/spool/slurm.state/clustername
 sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config
@@ -110,27 +106,28 @@ chown munge: /etc/munge/munge.key
 chmod 400 /etc/munge/munge.key
 systemctl restart munge
 
-cat <<EOF >> /etc/systemd/system/slurmdbd.service
-[Unit]
-Description=Slurm DBD accounting daemon
-After=network.target munge.service
-ConditionPathExists=/opt/slurm/etc/slurmdbd.conf
+# TODO: Create if doesn't exist (dependson PCluster version)
+# cat <<EOF >> /etc/systemd/system/slurmdbd.service
+# [Unit]
+# Description=Slurm DBD accounting daemon
+# After=network.target munge.service
+# ConditionPathExists=/opt/slurm/etc/slurmdbd.conf
 
-[Service]
-Type=simple
-Restart=always
-StartLimitIntervalSec=0
-RestartSec=5
-ExecStart=/opt/slurm/sbin/slurmdbd -D $SLURMDBD_OPTIONS
-ExecReload=/bin/kill -HUP $MAINPID
-LimitNOFILE=65536
-TasksMax=infinity
-ExecStartPost=/bin/systemctl restart slurmctld
+# [Service]
+# Type=simple
+# Restart=always
+# StartLimitIntervalSec=0
+# RestartSec=5
+# ExecStart=/opt/slurm/sbin/slurmdbd -D $SLURMDBD_OPTIONS
+# ExecReload=/bin/kill -HUP $MAINPID
+# LimitNOFILE=65536
+# TasksMax=infinity
+# ExecStartPost=/bin/systemctl restart slurmctld
 
-[Install]
-WantedBy=multi-user.target
+# [Install]
+# WantedBy=multi-user.target
 
-EOF
+# EOF
 
 # Start SLURM accounting
 systemctl enable slurmdbd
