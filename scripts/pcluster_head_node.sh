@@ -3,7 +3,7 @@
 #!/bin/bash
 
 # Install packages for domain
-yum -y -q install sssd realmd krb5-workstation samba-common-tools jq mysql amazon-efs-utils
+yum -y -q install jq mysql amazon-efs-utils
 REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)
 INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
 
@@ -13,25 +13,15 @@ OOD_STACK=$(aws cloudformation describe-stacks --stack-name $OOD_STACK_NAME --re
 
 STACK_NAME=$(aws ec2 describe-instances --instance-id=$INSTANCE_ID --region $REGION --query 'Reservations[].Instances[].Tags[?Key==`parallelcluster:cluster-name`].Value' --output text)
 OOD_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="SecretId") | .OutputValue')
-AD_PASSWORD_SECRET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ADAdministratorSecretARN") | .OutputValue')
 RDS_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="DBSecretId") | .OutputValue')
 EFS_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
-
-export AD_SECRET=$(aws secretsmanager --region $REGION get-secret-value --secret-id $OOD_SECRET_ID --query SecretString --output text)
-export S3_CONFIG_BUCKET=$(echo $AD_SECRET | jq -r ".ClusterConfigBucket")
-export DOMAIN_NAME=$(echo $AD_SECRET | jq -r ".DomainName")
-export TOP_LEVEL_DOMAIN=$(echo $AD_SECRET | jq -r ".TopLevelDomain")
+S3_CONFIG_BUCKET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
 
 export RDS_SECRET=$(aws secretsmanager --region $REGION get-secret-value --secret-id $RDS_SECRET_ID --query SecretString --output text)
 export RDS_USER=$(echo $RDS_SECRET | jq -r ".username")
 export RDS_PASSWORD=$(echo $RDS_SECRET | jq -r ".password")
 export RDS_ENDPOINT=$(echo $RDS_SECRET | jq -r ".host")
 export RDS_PORT=$(echo $RDS_SECRET | jq -r ".port")
-
-export AD_PASSWORD=$(aws secretsmanager --region $REGION get-secret-value --secret-id $AD_PASSWORD_SECRET --query SecretString --output text)
-
-# Join head node to the domain; PCluster doesn't do this by default
-echo $AD_PASSWORD | realm join -v -U Administrator $DOMAIN_NAME.$TOP_LEVEL_DOMAIN --install=/
 
 # Add entry for fstab so mounts on restart
 mkdir /shared
@@ -42,17 +32,6 @@ mount -a
 groupadd spack-users -g 4000
 
 /shared/copy_users.sh
-
-#This line allows the users to login without the domain name
-sed -i 's/use_fully_qualified_names = True/use_fully_qualified_names = False/g' /etc/sssd/sssd.conf
-#This line configure sssd to create the home directories in the shared folder
-sed -i 's/fallback_homedir = \/home\/%u/fallback_homedir = \/shared\/%u/' -i /etc/sssd/sssd.conf
-# sed -i '/fallback_homedir/c\fallback_homedir = /home/%u' /etc/sssd/sssd.conf
-sleep 1
-systemctl restart sssd
-# This line is required for AWS Parallel Cluster to understand correctly the custom domain
-sed -i "s/--fail \${local_hostname_url}/--fail \${local_hostname_url} | awk '{print \$1}'/g" /opt/parallelcluster/scripts/compute_ready
-
 
 ## Remove slurm cluster name; will be repopulated when instance restarts
 rm -f /var/spool/slurm.state/clustername
@@ -127,27 +106,28 @@ chown munge: /etc/munge/munge.key
 chmod 400 /etc/munge/munge.key
 systemctl restart munge
 
-cat <<EOF >> /etc/systemd/system/slurmdbd.service
-[Unit]
-Description=Slurm DBD accounting daemon
-After=network.target munge.service
-ConditionPathExists=/opt/slurm/etc/slurmdbd.conf
+# TODO: Create if doesn't exist (dependson PCluster version)
+# cat <<EOF >> /etc/systemd/system/slurmdbd.service
+# [Unit]
+# Description=Slurm DBD accounting daemon
+# After=network.target munge.service
+# ConditionPathExists=/opt/slurm/etc/slurmdbd.conf
 
-[Service]
-Type=simple
-Restart=always
-StartLimitIntervalSec=0
-RestartSec=5
-ExecStart=/opt/slurm/sbin/slurmdbd -D $SLURMDBD_OPTIONS
-ExecReload=/bin/kill -HUP $MAINPID
-LimitNOFILE=65536
-TasksMax=infinity
-ExecStartPost=/bin/systemctl restart slurmctld
+# [Service]
+# Type=simple
+# Restart=always
+# StartLimitIntervalSec=0
+# RestartSec=5
+# ExecStart=/opt/slurm/sbin/slurmdbd -D $SLURMDBD_OPTIONS
+# ExecReload=/bin/kill -HUP $MAINPID
+# LimitNOFILE=65536
+# TasksMax=infinity
+# ExecStartPost=/bin/systemctl restart slurmctld
 
-[Install]
-WantedBy=multi-user.target
+# [Install]
+# WantedBy=multi-user.target
 
-EOF
+# EOF
 
 # Start SLURM accounting
 systemctl enable slurmdbd
@@ -160,5 +140,3 @@ systemctl restart slurmdbd
 systemctl restart slurmctld # TODO: Investigate why this fixes clusters not registered issues
 
 aws s3 cp /etc/ood/config/clusters.d/$STACK_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$STACK_NAME.yml
-
-systemctl restart sssd
