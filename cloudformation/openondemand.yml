@@ -149,26 +149,26 @@ Resources:
   NATGW1:
     Type: AWS::EC2::NatGateway
     Properties:
-        AllocationId: !GetAtt EIP1.AllocationId
-        SubnetId: !Ref PublicSubnet1
+      AllocationId: !GetAtt EIP1.AllocationId
+      SubnetId: !Ref PublicSubnet1
 
   EIP1:
     DependsOn: AttachGateway
     Type: AWS::EC2::EIP
     Properties:
-        Domain: vpc
+      Domain: vpc
 
   NATGW2:
     Type: AWS::EC2::NatGateway
     Properties:
-        AllocationId: !GetAtt EIP2.AllocationId
-        SubnetId: !Ref PublicSubnet2
+      AllocationId: !GetAtt EIP2.AllocationId
+      SubnetId: !Ref PublicSubnet2
 
   EIP2:
     DependsOn: AttachGateway
     Type: AWS::EC2::EIP
     Properties:
-        Domain: vpc
+      Domain: vpc
 
   PublicRouteTable1:
     Type: AWS::EC2::RouteTable
@@ -562,12 +562,11 @@ Resources:
           - !Sub '"DomainName": "${DomainName}"'
           - '}'
 
-  SimpleAD:
-    Type: AWS::DirectoryService::SimpleAD
+  ActiveDirectory:
+    Type: AWS::DirectoryService::MicrosoftAD
     Properties:
+      Edition: Standard
       Name: !Sub ${DomainName}.${TopLevelDomain}
-      ShortName: !Ref DomainName
-      Size: Small
       Password: !Sub '{{resolve:secretsmanager:${ADAdministratorSecret}:SecretString}}'
       VpcSettings:
         SubnetIds:
@@ -766,12 +765,12 @@ Resources:
         spack:
           commands:
             install_spack:
-              command:  ./install_spack.sh
+              command: ./install_spack.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
     Properties:
       LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
       LaunchTemplateData:
-        ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', AMIID ]
+        ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', AMIID]
         InstanceType: m6i.large
         IamInstanceProfile:
           Name: !Ref OpenOnDemandInstanceProfile
@@ -818,7 +817,7 @@ Resources:
             /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configset config
 
   OODServerASG:
-    DependsOn: SimpleAD
+    DependsOn: ActiveDirectory
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       MinSize: "1"
@@ -1024,7 +1023,7 @@ Resources:
             Principal:
               AWS: !Sub
                 - arn:aws:iam::${LogAccount}:root
-                - LogAccount: !FindInMap [RegionMap, !Ref 'AWS::Region', ALBLogAccount ]
+                - LogAccount: !FindInMap [RegionMap, !Ref 'AWS::Region', ALBLogAccount]
             Action: "s3:PutObject"
             Resource: !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}/*
             Condition:
@@ -1080,8 +1079,8 @@ Resources:
       Port: 389
       VpcId: !Ref VPC
       Targets:
-        - Id: !Select [0, !GetAtt SimpleAD.DnsIpAddresses]
-        - Id: !Select [1, !GetAtt SimpleAD.DnsIpAddresses]
+        - Id: !Select [0, !GetAtt ActiveDirectory.DnsIpAddresses]
+        - Id: !Select [1, !GetAtt ActiveDirectory.DnsIpAddresses]
 
   EventBridgeRole:
     Type: AWS::IAM::Role
@@ -1243,7 +1242,7 @@ Resources:
   DNSRecord:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneName : !Ref HostedZoneName
+      HostedZoneName: !Ref HostedZoneName
       Name: !Ref WebsiteDomainName
       AliasTarget:
         DNSName: !GetAtt ALB.DNSName
@@ -1428,7 +1427,7 @@ Outputs:
     Value: !Ref ClusterConfigBucket
   DirectoryId:
     Description: Directory ID
-    Value: !Ref SimpleAD
+    Value: !Ref ActiveDirectory
   SecretId:
     Description: Open OnDemand Secret ID
     Value: !Ref OpenOnDemandSecrets

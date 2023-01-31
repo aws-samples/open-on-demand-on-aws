@@ -31,7 +31,7 @@ dex:
             host: $LDAP_NLB
             insecureSkipVerify: false
             insecureNoSSL: true
-            bindDN: cn=Administrator,CN=Users,dc=$DOMAIN_NAME,dc=$TOP_LEVEL_DOMAIN
+            bindDN: CN=Admin,OU=Users,OU=$DOMAIN_NAME,DC=$DOMAIN_NAME,DC=$TOP_LEVEL_DOMAIN
             bindPW: $AD_PASSWORD
             userSearch:
               baseDN: dc=$DOMAIN_NAME,dc=$TOP_LEVEL_DOMAIN

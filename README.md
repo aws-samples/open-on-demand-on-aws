@@ -10,8 +10,8 @@ The primary components of the solution are:
 
 1. Application load balancer as the entry point to your OOD portal.
 1. An Auto Scaling Group for the OOD Portal.
-1. A SimpleAD LDAP Directory
-1. A Network Load Balancer (NLB) to provide a single point of connectivity to SimpleAD
+1. A Microsoft ManagedAD Directory
+1. A Network Load Balancer (NLB) to provide a single point of connectivity to Microsoft ManagedAD
 1. An Elastic File System (EFS) share for user home directories
 1. An Aurora MySQL database to store Slurm Accounting data
 1. Automation via Event Bridge to automatically register and deregister Parallel Cluster HPC Clusters with OOD
@@ -54,7 +54,7 @@ This solution was tested with PCluster version 3.3.1
 | Sydney (ap-southeast-2) | [![Launch](https://samdengler.github.io/cloudformation-launch-stack-button-svg/images/ap-southeast-2.svg)](https://ap-southeast-2.console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/create/review?stackName=open-ondemand&templateURL=https://aws-hpc-workshops.s3.amazonaws.com/openondemand.yml) |
 </details>
 
-Once deployed, you should be able to navigate to the URL you set up as a CloudFormation parameter and log into your Open OnDemand portal. You can use the username `Administrator` and retrieve the default password from Secrets Manager. The correct secret can be identified in the output of the Open OnDemand CloudFormation template via the entry with the key `ADAdministratorSecretArn`.
+Once deployed, you should be able to navigate to the URL you set up as a CloudFormation parameter and log into your Open OnDemand portal. You can use the username `Admin` and retrieve the default password from Secrets Manager. The correct secret can be identified in the output of the Open OnDemand CloudFormation template via the entry with the key `ADAdministratorSecretArn`.
 
 ### Deploying an integrated Parallel Cluster HPC Cluster
 
