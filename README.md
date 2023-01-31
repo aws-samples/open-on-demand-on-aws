@@ -10,8 +10,8 @@ The primary components of the solution are:
 
 1. Application load balancer as the entry point to your OOD portal.
 1. An Auto Scaling Group for the OOD Portal.
-1. A SimpleAD LDAP Directory
-1. A Network Load Balancer (NLB) to provide a single point of connectivity to SimpleAD
+1. A Microsoft ManagedAD Directory
+1. A Network Load Balancer (NLB) to provide a single point of connectivity to Microsoft ManagedAD
 1. An Elastic File System (EFS) share for user home directories
 1. An Aurora MySQL database to store Slurm Accounting data
 1. Automation via Event Bridge to automatically register and deregister Parallel Cluster HPC Clusters with OOD
