@@ -206,7 +206,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select
-        - 1
+        - 0
         - Fn::GetAZs: !Ref 'AWS::Region'
       CidrBlock: 10.0.0.0/26
       VpcId: !Ref VPC
@@ -219,7 +219,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select
-        - 2
+        - 1
         - Fn::GetAZs: !Ref 'AWS::Region'
       CidrBlock: 10.0.0.128/26
       VpcId: !Ref VPC
@@ -232,7 +232,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select
-        - 1
+        - 0
         - Fn::GetAZs: !Ref 'AWS::Region'
       CidrBlock: 10.0.2.0/24
       VpcId: !Ref VPC
@@ -260,7 +260,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select
-        - 2
+        - 1
         - Fn::GetAZs: !Ref 'AWS::Region'
       CidrBlock: 10.0.3.0/24
       VpcId: !Ref VPC
@@ -696,7 +696,8 @@ Resources:
             configure_cert:
               command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_instance_cert.sh
           sources:
-            /etc/ood-install: !Sub https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
+#            /etc/ood-install: !Sub https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
+            /etc/ood-install: !Sub https://github.com/jxuamazon/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
           files: # Creates a file with appropriate variables for use in scripts. No secrets in here
             /etc/ood-install/set_variables.sh:
               content: !Sub |

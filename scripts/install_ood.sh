@@ -26,13 +26,13 @@ ldap_referrals = False
 ldap_schema = AD
 ldap_search_base = DC=$DOMAIN_NAME,DC=$TOP_LEVEL_DOMAIN
 ldap_tls_reqcert = never
-ldap_uri = $LDAP_NLB
+ldap_uri = ldap://$LDAP_NLB
 use_fully_qualified_names = False
 
 [sssd]
 config_file_version = 2
 services = nss, pam
-domains = hpclab.local
+domains = $DOMAIN_NAME.$TOP_LEVEL_DOMAIN
 full_name_format = %1\$s
 
 [nss]
@@ -109,7 +109,7 @@ if  id "\$1" &> /dev/null; then
     echo "user \$1 home folder doesn't exist, create one " >> /var/log/add_user.log
   #  usermod -a -G spack-users \$1
     mkdir -p /shared/home/\$1 >> /var/log/add_user.log
-    chown \$1 /shared/home/\$1 >> /var/log/add_user.log
+    chown \$1:"Domain Users" /shared/home/\$1 >> /var/log/add_user.log
   #  echo "\$1 $(id -u $1)" >> /shared/userlistfile
     sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
     sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
