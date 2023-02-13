@@ -38,6 +38,13 @@ rm -f /var/spool/slurm.state/clustername
 sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config
 service sshd restart
 
+#This line allows the users to login without the domain name
+sed -i 's/use_fully_qualified_names = True/use_fully_qualified_names = False/g' /etc/sssd/sssd.conf
+sed -i 's/fallback_homedir = \/home\/%u/fallback_homedir = \/shared\/home\/%u/' -i /etc/sssd/sssd.conf
+sleep 1
+systemctl restart sssd
+
+
 export SLURM_VERSION=$(. /etc/profile && sinfo --version | cut -d' ' -f 2)
 sed -i "s/ClusterName=.*$/ClusterName=$STACK_NAME/" /opt/slurm/etc/slurm.conf
 
@@ -107,27 +114,27 @@ chmod 400 /etc/munge/munge.key
 systemctl restart munge
 
 # TODO: Create if doesn't exist (dependson PCluster version)
-# cat <<EOF >> /etc/systemd/system/slurmdbd.service
-# [Unit]
-# Description=Slurm DBD accounting daemon
-# After=network.target munge.service
-# ConditionPathExists=/opt/slurm/etc/slurmdbd.conf
+cat <<EOF >> /etc/systemd/system/slurmdbd.service
+[Unit]
+Description=Slurm DBD accounting daemon
+After=network.target munge.service
+ConditionPathExists=/opt/slurm/etc/slurmdbd.conf
 
-# [Service]
-# Type=simple
-# Restart=always
-# StartLimitIntervalSec=0
-# RestartSec=5
-# ExecStart=/opt/slurm/sbin/slurmdbd -D $SLURMDBD_OPTIONS
-# ExecReload=/bin/kill -HUP $MAINPID
-# LimitNOFILE=65536
-# TasksMax=infinity
-# ExecStartPost=/bin/systemctl restart slurmctld
+[Service]
+Type=simple
+Restart=always
+StartLimitIntervalSec=0
+RestartSec=5
+ExecStart=/opt/slurm/sbin/slurmdbd -D $SLURMDBD_OPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+LimitNOFILE=65536
+TasksMax=infinity
+ExecStartPost=/bin/systemctl restart slurmctld
 
-# [Install]
-# WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target
 
-# EOF
+EOF
 
 # Start SLURM accounting
 systemctl enable slurmdbd

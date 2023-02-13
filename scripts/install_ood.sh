@@ -11,6 +11,42 @@ export AD_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --se
 export AD_PASSWORD=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_PASSWORD --query SecretString --output text)
 export ALB_NAME=${!ALB_DNS_NAME,,} # Need to make it lower case as apache is case sensitive
 
+cat << EOF >> /etc/sssd/sssd.conf
+[domain/$DOMAIN_NAME.$TOP_LEVEL_DOMAIN]
+cache_credentials = True
+debug_level = 0x1ff
+default_shell = /bin/bash
+fallback_homedir = /shared/home/%u
+id_provider = ldap
+ldap_auth_disable_tls_never_use_in_production = true
+ldap_default_authtok = $AD_PASSWORD
+ldap_default_bind_dn = CN=Admin,OU=Users,OU=$DOMAIN_NAME,DC=$DOMAIN_NAME,DC=$TOP_LEVEL_DOMAIN
+ldap_id_mapping = True
+ldap_referrals = False
+ldap_schema = AD
+ldap_search_base = DC=$DOMAIN_NAME,DC=$TOP_LEVEL_DOMAIN
+ldap_tls_reqcert = never
+ldap_uri = $LDAP_NLB
+use_fully_qualified_names = False
+
+[sssd]
+config_file_version = 2
+services = nss, pam
+domains = hpclab.local
+full_name_format = %1\$s
+
+[nss]
+filter_users = nobody,root
+filter_groups = nobody,root
+
+[pam]
+offline_credentials_expiration = 7
+EOF
+
+chown root:root /etc/sssd/sssd.conf
+chmod 600 /etc/sssd/sssd.conf
+systemctl restart sssd
+
 sed -i "s/#servername: null/servername: $WEBSITE_DOMAIN/" /etc/ood/config/ood_portal.yml
 
 cat << EOF >> /etc/ood/config/ood_portal.yml
@@ -41,6 +77,10 @@ dex:
               emailAttr: name
               nameAttr: name
               preferredUsernameAttr: name
+# turn on proxy for interactive desktop apps
+host_regex: '[^/]+'
+node_uri: '/node'
+rnode_uri: '/rnode'
 EOF
 
 # # Tells PUN to look for home directories in EFS
@@ -63,16 +103,18 @@ mkdir -p /shared/home
 
 # Script that we want to use when adding user
 cat << EOF >> /etc/ood/add_user.sh
-if ! id "\$1" &>/dev/null; then
-  echo "Adding user \$1" >> /var/log/add_user.log
-  sudo adduser \$1 --home /shared/home/\$1 >> /var/log/add_user.log
-  usermod -a -G spack-users \$1
-  mkdir -p /shared/home/\$1 >> /var/log/add_user.log
-  chown \$1 /shared/home/\$1 >> /var/log/add_user.log
-  echo "\$1 \$(id -u \$1)" >> /shared/userlistfile
-  sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
-  sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
-  chmod 600 /shared/home/\$1/.ssh/*
+if  id "\$1" &> /dev/null; then
+  echo "user \$1 found" >> /var/log/add_user.log
+  if [ ! -d "/shared/home/\$1" ] ; then
+    echo "user \$1 home folder doesn't exist, create one " >> /var/log/add_user.log
+  #  usermod -a -G spack-users \$1
+    mkdir -p /shared/home/\$1 >> /var/log/add_user.log
+    chown \$1 /shared/home/\$1 >> /var/log/add_user.log
+  #  echo "\$1 $(id -u $1)" >> /shared/userlistfile
+    sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
+    sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
+    chmod 600 /shared/home/\$1/.ssh/*
+  fi
 fi
 echo \$1
 EOF
@@ -82,20 +124,20 @@ echo "user_map_cmd: '/etc/ood/add_user.sh'" >> /etc/ood/config/ood_portal.yml
 
 # Creates a script where we can re-create local users on PCluster nodes.
 # Since OOD uses local users, need those same local users with same UID on PCluster nodes
-cat << EOF >> /shared/copy_users.sh
-while read USERNAME USERID
-do
-    # -u to set UID to match what is set on the head node
-    if [ \$(grep -c '^\$USERNAME:' /etc/passwd) -eq 0 ]; then
-        useradd -M -u \$USERID \$USERNAME -d /shared/home/\$USERNAME
-        usermod -a -G spack-users \$USERNAME
-    fi
-done < "/shared/userlistfile"
-EOF
+#cat << EOF >> /shared/copy_users.sh
+#while read USERNAME USERID
+#do
+#    # -u to set UID to match what is set on the head node
+#    if [ \$(grep -c '^\$USERNAME:' /etc/passwd) -eq 0 ]; then
+#        useradd -M -u \$USERID \$USERNAME -d /shared/home/\$USERNAME
+#        usermod -a -G spack-users \$USERNAME
+#    fi
+#done < "/shared/userlistfile"
+#EOF
 
 chmod +x /etc/ood/add_user.sh
-chmod +x /shared/copy_users.sh
-chmod o+w /shared/userlistfile
+#chmod +x /shared/copy_users.sh
+#chmod o+w /shared/userlistfile
 
 /opt/ood/ood-portal-generator/sbin/update_ood_portal
 systemctl enable httpd
