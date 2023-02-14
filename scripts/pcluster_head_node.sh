@@ -113,33 +113,6 @@ chown munge: /etc/munge/munge.key
 chmod 400 /etc/munge/munge.key
 systemctl restart munge
 
-# TODO: Create if doesn't exist (dependson PCluster version)
-cat <<EOF >> /etc/systemd/system/slurmdbd.service
-[Unit]
-Description=Slurm DBD accounting daemon
-After=network.target munge.service
-ConditionPathExists=/opt/slurm/etc/slurmdbd.conf
-
-[Service]
-Type=simple
-Restart=always
-StartLimitIntervalSec=0
-RestartSec=5
-ExecStart=/opt/slurm/sbin/slurmdbd -D $SLURMDBD_OPTIONS
-ExecReload=/bin/kill -HUP $MAINPID
-LimitNOFILE=65536
-TasksMax=infinity
-ExecStartPost=/bin/systemctl restart slurmctld
-
-[Install]
-WantedBy=multi-user.target
-
-EOF
-
-# Start SLURM accounting
-systemctl enable slurmdbd
-systemctl start slurmdbd
-
 # Add cluster to slurm accounting
 sacctmgr add cluster $STACK_NAME
 systemctl restart slurmctld
