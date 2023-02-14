@@ -7,7 +7,7 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: Simple AD
+          default: Active Directory
         Parameters:
           - DomainName
           - TopLevelDomain
