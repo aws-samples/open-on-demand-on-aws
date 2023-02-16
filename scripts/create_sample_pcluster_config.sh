@@ -78,7 +78,6 @@ Scheduling:
             - $STACK_NAME
       Iam:
         AdditionalIamPolicies:
-          - Policy: arn:aws:iam::aws:policy/AmazonS3FullAccess
           - Policy: >-
               $COMPUTE_POLICY
     - Name: desktop
@@ -107,7 +106,6 @@ Scheduling:
             - $STACK_NAME
       Iam:
         AdditionalIamPolicies:
-          - Policy: arn:aws:iam::aws:policy/AmazonS3FullAccess
           - Policy: >-
               $COMPUTE_POLICY
   SlurmSettings: {}
