@@ -111,7 +111,7 @@ Scheduling:
           - Policy: >-
               $COMPUTE_POLICY
   SlurmSettings: {}
-Region: us-east-1
+Region: $REGION
 Image:
   Os: alinux2
 DirectoryService:
