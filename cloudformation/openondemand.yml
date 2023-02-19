@@ -79,6 +79,39 @@ Mappings:
     us-west-2:
       AMIID: ami-056c679fab9e48d8a
       ALBLogAccount: 797873946194
+    ap-northeast-1:
+      AMIID: ami-06ee905d0566e92e7
+      ALBLogAccount: 582318560864
+    ap-northeast-2:
+      AMIID: ami-054d85b8af5b91956
+      ALBLogAccount: 600734575887
+    ap-south-1:
+      AMIID: ami-0967a8b99f328dfee
+      ALBLogAccount: 718504428378
+    ap-southeast-1:
+      AMIID: ami-092422d03e2e1e43f
+      ALBLogAccount: 114774131450
+    ap-southeast-2:
+      AMIID: ami-0270da940c59823a1
+      ALBLogAccount: 783225319266
+    ca-central-1:
+      AMIID: ami-0c43193f9aa2a22db
+      ALBLogAccount: 985666609251
+    eu-central-1:
+      AMIID: ami-071096749fda40d3f
+      ALBLogAccount: 054676820928
+    eu-north-1:
+      AMIID: ami-0ab62823bc41fa10a
+      ALBLogAccount: 027434742980
+    eu-west-1:
+      AMIID: ami-0e0669c0b39d3a79f
+      ALBLogAccount: 156460612806
+    eu-west-2:
+      AMIID: ami-0418c980c296f36ce
+      ALBLogAccount: 652711504416
+    eu-west-3:
+      AMIID: ami-068ebc10e14d9a504
+      ALBLogAccount: 009996457667
 Resources:
 
   OODCertificate:
