@@ -37,3 +37,35 @@ sed -i 's/use_fully_qualified_names = True/use_fully_qualified_names = False/g' 
 sed -i 's/fallback_homedir = \/home\/%u/fallback_homedir = \/shared\/home\/%u/' -i /etc/sssd/sssd.conf
 sleep 1
 systemctl restart sssd
+
+## install remote desktop packages
+## uncomment the following if you want to run interacctive remote desktop session in OOD
+##
+yum install nmap-ncat -y
+
+cat > /etc/yum.repos.d/TurboVNC.repo <<  'EOF'
+[TurboVNC]
+name=TurboVNC official RPMs
+baseurl=https://sourceforge.net/projects/turbovnc/files
+gpgcheck=1
+gpgkey=https://sourceforge.net/projects/turbovnc/files/VGL-GPG-KEY
+       https://sourceforge.net/projects/turbovnc/files/VGL-GPG-KEY-1024
+enabled=1
+EOF
+
+yum install turbovnc -y
+
+amazon-linux-extras install python3.8
+ln -sf /usr/bin/python3.8 /usr/bin/python3
+
+pip3 install --no-input websockify
+pip3 install --no-input jupyter
+
+amazon-linux-extras install mate-desktop1.x -y
+
+#
+cat >> /etc/bashrc << 'EOF'
+PATH=$PATH:/opt/TurboVNC/bin
+#this is to fix the dconf permission error
+export XDG_RUNTIME_DIR="$HOME/.cache/dconf"
+EOF

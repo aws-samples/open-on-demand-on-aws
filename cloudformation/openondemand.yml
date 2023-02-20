@@ -7,7 +7,7 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: Simple AD
+          default: Active Directory
         Parameters:
           - DomainName
           - TopLevelDomain
@@ -239,7 +239,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select
-        - 1
+        - 0
         - Fn::GetAZs: !Ref 'AWS::Region'
       CidrBlock: 10.0.0.0/26
       VpcId: !Ref VPC
@@ -252,7 +252,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select
-        - 2
+        - 1
         - Fn::GetAZs: !Ref 'AWS::Region'
       CidrBlock: 10.0.0.128/26
       VpcId: !Ref VPC
@@ -265,7 +265,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select
-        - 1
+        - 0
         - Fn::GetAZs: !Ref 'AWS::Region'
       CidrBlock: 10.0.2.0/24
       VpcId: !Ref VPC
@@ -293,7 +293,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select
-        - 2
+        - 1
         - Fn::GetAZs: !Ref 'AWS::Region'
       CidrBlock: 10.0.3.0/24
       VpcId: !Ref VPC
