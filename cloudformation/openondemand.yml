@@ -53,6 +53,7 @@ Parameters:
   HostedZoneName:
     Description: Hosted zone for the domain
     Type: String
+    AllowedPattern: '[A-Za-z\.]*\.$'
   HostedZoneId:
     Description: Hosted Zone Id for Route53 Domain
     Type: String
