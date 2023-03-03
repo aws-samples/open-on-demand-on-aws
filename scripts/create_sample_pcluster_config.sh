@@ -28,6 +28,8 @@ export LDAP_ENDPOINT=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.Ou
 cat << EOF > ../pcluster-config.yml
 HeadNode:
   InstanceType: c5.large
+  Ssh:
+    KeyName: $SSH_KEY
   Networking:
     SubnetId: $SUBNET
     AdditionalSecurityGroups:
@@ -116,5 +118,5 @@ DirectoryService:
   PasswordSecretArn: $AD_SECRET_ARN
   DomainReadOnlyUser: cn=Admin,ou=Users,ou=$DOMAIN_1,dc=$DOMAIN_1,dc=$DOMAIN_2
   AdditionalSssdConfigs:
-    override_homedir = /shared/home/%u
+    override_homedir: /shared/home/%u
 EOF
