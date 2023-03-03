@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# this script creates a sample parallelcluster config file to work with your OOD environment. 
+# this script creates a sample parallelcluster config file to work with your OOD environment.
 # It needs to read outputs from your OOD stack you already deployed. So you need to have the AWS_PROFILE or access key environment variables set
-# The cluster will have two partitions defined, one for general workload, one for interactive desktop. 
-# Please update your 
-export STACK_NAME="OpenOnDemand"
+# The cluster will have two partitions defined, one for general workload, one for interactive desktop.
+# Please update your
+export STACK_NAME="openondemand-demo"
 export SSH_KEY='<your SSH_KEY name>'
 
 
@@ -25,7 +25,7 @@ export BUCKET_NAME=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.Outp
 export LDAP_ENDPOINT=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="LDAPNLBEndPoint") | .OutputValue')
 
 
-cat << EOF > ../pcluster-config.yml 
+cat << EOF > ../pcluster-config.yml
 HeadNode:
   InstanceType: c5.large
   Ssh:
@@ -117,4 +117,6 @@ DirectoryService:
   DomainAddr: $LDAP_ENDPOINT
   PasswordSecretArn: $AD_SECRET_ARN
   DomainReadOnlyUser: cn=Admin,ou=Users,ou=$DOMAIN_1,dc=$DOMAIN_1,dc=$DOMAIN_2
+  AdditionalSssdConfigs:
+    override_homedir: /shared/home/%u
 EOF
