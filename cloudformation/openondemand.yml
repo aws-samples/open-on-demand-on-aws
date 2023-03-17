@@ -545,6 +545,17 @@ Resources:
       GroupId: !GetAtt PortalSecurityGroup.GroupId
       DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
 
+  PortalComputeNodeEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: -1
+      ToPort: -1
+      Description: Outbound to Compute Nodes for Interactive Apps
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
+
+
   HeadNodeSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -554,12 +565,12 @@ Resources:
           FromPort: 6819
           ToPort: 6819
           IpProtocol: tcp
-          Description: Allows inbound for Slurm Accounting
+          Description: Slurm Accounting
         - SourceSecurityGroupId: !Ref PortalSecurityGroup
           FromPort: 6820
           ToPort: 6820
           IpProtocol: tcp
-          Description: Allows inbound for Slurm Accounting
+          Description: Slurm Accounting
       SecurityGroupEgress:
         - Description: Remove default rule for egress
           CidrIp: 127.0.0.1/32
@@ -570,6 +581,12 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for PCluster ComputeNode
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref PortalSecurityGroup
+          FromPort: -1
+          ToPort: -1
+          IpProtocol: tcp
+          Description: Portal rule for for Interactive Apps
       SecurityGroupEgress:
         - Description: Remove default rule for egress
           CidrIp: 127.0.0.1/32
@@ -582,7 +599,7 @@ Resources:
       Description: !Sub AD Secrets for Open On Demand Stack ${AWS::StackName}
       GenerateSecretString:
         PasswordLength: 12
-        ExcludeCharacters: '"@/\''$`,;!%'
+        ExcludeCharacters: '"@/\''$`,;!%<>#'
 
   OpenOnDemandSecrets:
     Type: AWS::SecretsManager::Secret
@@ -789,17 +806,17 @@ Resources:
                 . /etc/ood-install/set_variables.sh
                 ./configure_slurm_accounting.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
+        spack:
+          commands:
+            install_spack:
+              command: ./install_spack.sh
+              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
         ood:
           commands:
             ood_install:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./install_ood.sh
-              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
-        spack:
-          commands:
-            install_spack:
-              command: ./install_spack.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
     Properties:
       LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
