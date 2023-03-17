@@ -28,6 +28,8 @@ export LDAP_ENDPOINT=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.Ou
 cat << EOF > ../pcluster-config.yml
 HeadNode:
   InstanceType: c5.large
+  Ssh:
+    KeyName: $SSH_KEY
   Networking:
     SubnetId: $SUBNET
     AdditionalSecurityGroups:
