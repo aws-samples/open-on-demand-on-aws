@@ -76,10 +76,9 @@ In your Parallel Cluster config, you must set the following values:
 
 ### Enabling Interactive Desktops
 
-The enable interactive desktops on a compute queue, do the following:
+You can enable interactive clusters on the Portal server by following the directions [here](https://osc.github.io/ood-documentation/latest/enable-desktops/add-cluster.html).
 
-1. Add a cluster to the Portal by following the directions [here](https://osc.github.io/ood-documentation/latest/enable-desktops/add-cluster.html)
-
+This requires you to have a compute queue with `pcluster_worker_node_desktop.sh` as your `OnNodeConfigured` script.
 
 ## Security
 
