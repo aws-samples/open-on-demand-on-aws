@@ -26,7 +26,6 @@ This solution was tested with PCluster version 3.3.1
 
 1. Launch the stack in your AWS account by clicking on one of the below regions:
 
-
 | Region           | Launch                                                                                                                                                                                                                                                                                                                           |
 |------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Ohio (us-east-2) | [![Launch](https://samdengler.github.io/cloudformation-launch-stack-button-svg/images/us-east-2.svg)](https://us-east-2.console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/create/review?stackName=open-ondemand&templateURL=https://aws-hpc-workshops.s3.amazonaws.com/openondemand.yml) |
@@ -74,6 +73,13 @@ In your Parallel Cluster config, you must set the following values:
     1. OnNodeConfigured
         1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
+
+### Enabling Interactive Desktops
+
+The enable interactive desktops on a compute queue, do the following:
+
+1. Add a cluster to the Portal by following the directions [here](https://osc.github.io/ood-documentation/latest/enable-desktops/add-cluster.html)
+
 
 ## Security
 
