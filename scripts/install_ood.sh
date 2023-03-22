@@ -252,4 +252,12 @@ chmod +x /etc/ood/config/bin_overrides.py
 #Edit sudoers to allow apache to add users
 echo "apache  ALL=/sbin/adduser" >> /etc/sudoers
 echo "apache  ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# Setup for interactive desktops with PCluster
+rm -rf /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
+cat << EOF >> /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
+batch_connect:
+  template: vnc
+  websockify_cmd: "/usr/local/bin/websockify"
+EOF
 reboot
