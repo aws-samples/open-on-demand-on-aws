@@ -549,8 +549,8 @@ Resources:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
       IpProtocol: tcp
-      FromPort: -1
-      ToPort: -1
+      FromPort: 0
+      ToPort: 65535
       Description: Outbound to Compute Nodes for Interactive Apps
       GroupId: !GetAtt PortalSecurityGroup.GroupId
       DestinationSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
@@ -583,8 +583,8 @@ Resources:
       GroupDescription: Security Group for PCluster ComputeNode
       SecurityGroupIngress:
         - SourceSecurityGroupId: !Ref PortalSecurityGroup
-          FromPort: -1
-          ToPort: -1
+          FromPort: 0
+          ToPort: 65535
           IpProtocol: tcp
           Description: Portal rule for for Interactive Apps
       SecurityGroupEgress:

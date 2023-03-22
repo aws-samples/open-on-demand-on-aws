@@ -4,12 +4,12 @@
 # It needs to read outputs from your OOD stack you already deployed. So you need to have the AWS_PROFILE or access key environment variables set
 # The cluster will have two partitions defined, one for general workload, one for interactive desktop.
 # Please update your
-export STACK_NAME="ood-demo"
+export STACK_NAME="openondemand-demo"
 export SSH_KEY='<your SSH_KEY name>'
 
 
 export REGION="us-east-1"
-export DOMAIN_1="hpclab"
+export DOMAIN_1="rc"
 export DOMAIN_2="local"
 
 export OOD_STACK=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION )
