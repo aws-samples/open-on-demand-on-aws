@@ -4,7 +4,7 @@
 # It needs to read outputs from your OOD stack you already deployed. So you need to have the AWS_PROFILE or access key environment variables set
 # The cluster will have two partitions defined, one for general workload, one for interactive desktop.
 # Please update your
-export STACK_NAME="openondemand-demo"
+export STACK_NAME="ood-30"
 export SSH_KEY='<your SSH_KEY name>'
 
 
@@ -28,8 +28,6 @@ export LDAP_ENDPOINT=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.Ou
 cat << EOF > ../pcluster-config.yml
 HeadNode:
   InstanceType: c5.large
-  Ssh:
-    KeyName: $SSH_KEY
   Networking:
     SubnetId: $SUBNET
     AdditionalSecurityGroups:
