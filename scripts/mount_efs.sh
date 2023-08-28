@@ -1,11 +1,14 @@
+#!/bin/bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 # Installs amazon-efs-utils (https://github.com/aws/efs-utils)
-yum -y install git rpm-build make
-git clone https://github.com/aws/efs-utils
-cd efs-utils
-make rpm
-yum -y install build/amazon-efs-utils*rpm
+
+# Install EFS
+pushd /tmp && git clone https://github.com/aws/efs-utils
+pushd efs-utils
+./build-deb.sh
+apt install ./build/amazon-efs-utils*deb -yq
+popd
 
 # # Mount EFS file system
 mkdir /shared
