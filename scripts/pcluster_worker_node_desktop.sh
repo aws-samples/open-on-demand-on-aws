@@ -59,8 +59,8 @@ EOF
 
 yum install turbovnc -y
 
-amazon-linux-extras install python3.10
-ln -sf /usr/bin/python3.10 /usr/bin/python3
+amazon-linux-extras install python3.8
+ln -sf /usr/bin/python3.8 /usr/bin/python3
 
 pip3 install --no-input websockify
 pip3 install --no-input jupyter

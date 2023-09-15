@@ -68,7 +68,7 @@ Parameters:
     Type: String
   SlurmVersion:
     Description: Verion of slurm to install
-    Default: 23.02.2
+    Default: 23.02.5
     Type: String
 Mappings:
   # Ubuntu 22.04
