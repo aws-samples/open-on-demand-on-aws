@@ -1,14 +1,16 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: MIT-0
 #!/bin/bash
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 # Install packages for domain
-yum -y -q install jq mysql amazon-efs-utils
-REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+yum -y -q install jq amazon-efs-utils
+
+TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/placement/region)
+INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v -s http://169.254.169.254/latest/meta-data/instance-id)
 
 OOD_STACK_NAME=$1
-
 OOD_STACK=$(aws cloudformation describe-stacks --stack-name $OOD_STACK_NAME --region $REGION )
 
 STACK_NAME=$(aws ec2 describe-instances --instance-id=$INSTANCE_ID --region $REGION --query 'Reservations[].Instances[].Tags[?Key==`parallelcluster:cluster-name`].Value' --output text)
@@ -22,16 +24,15 @@ export RDS_USER=$(echo $RDS_SECRET | jq -r ".username")
 export RDS_PASSWORD=$(echo $RDS_SECRET | jq -r ".password")
 export RDS_ENDPOINT=$(echo $RDS_SECRET | jq -r ".host")
 export RDS_PORT=$(echo $RDS_SECRET | jq -r ".port")
+export RDS_DBNAME=$(echo $RDS_SECRET | jq -r ".dbname")
 
 # Add entry for fstab so mounts on restart
 mkdir /shared
-echo "$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
+echo "$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
 mount -a
 
 # Add spack-users group
 groupadd spack-users -g 4000
-
-/shared/copy_users.sh
 
 ## Remove slurm cluster name; will be repopulated when instance restarts
 rm -f /var/spool/slurm.state/clustername
@@ -92,6 +93,8 @@ StorageUser=$RDS_USER
 StoragePass=$RDS_PASSWORD
 StorageHost=$RDS_ENDPOINT # Endpoint from RDS console
 StoragePort=$RDS_PORT  # Port from RDS console
+StorageLoc=$RDS_DBNAME
+
 EOF
 
 cat << EOF >> /opt/slurm/etc/slurm.conf
@@ -113,18 +116,43 @@ chown munge: /etc/munge/munge.key
 chmod 400 /etc/munge/munge.key
 systemctl restart munge
 
+# TODO: Create if doesn't exist (dependson PCluster version)
+#cat <<EOF >> /etc/systemd/system/slurmdbd.service
+#[Unit]
+#Description=Slurm DBD accounting daemon
+#After=network.target munge.service
+#ConditionPathExists=/opt/slurm/etc/slurmdbd.conf
+#
+#[Service]
+#Type=simple
+#Restart=always
+#StartLimitIntervalSec=0
+#RestartSec=5
+#ExecStart=/opt/slurm/sbin/slurmdbd -D $SLURMDBD_OPTIONS
+#ExecReload=/bin/kill -HUP $MAINPID
+#LimitNOFILE=65536
+#TasksMax=infinity
+#ExecStartPost=/bin/systemctl restart slurmctld
+#
+#[Install]
+#WantedBy=multi-user.target
+#
+#EOF
+
+# Start SLURM accounting
+systemctl daemon-reload
+systemctl enable slurmdbd
+systemctl start slurmdbd
+
 # Add cluster to slurm accounting
-sacctmgr add cluster $STACK_NAME
+sacctmgr --quiet add cluster $STACK_NAME
 systemctl restart slurmctld
 systemctl restart slurmdbd
 systemctl restart slurmctld # TODO: Investigate why this fixes clusters not registered issues
 
 aws s3 cp /etc/ood/config/clusters.d/$STACK_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$STACK_NAME.yml
 
-# Generate bc_desktop file for optional desktop interactive apps
-mkdir -p /etc/ood/config/apps/bc_desktop
-cat << EOF > /etc/ood/config/apps/bc_desktop/$STACK_NAME.yml
----
-title: "$STACK_NAME Desktop"
-cluster: "$STACK_NAME"
+#
+cat >> /etc/bashrc << 'EOF'
+PATH=$PATH:/shared/software/bin
 EOF
