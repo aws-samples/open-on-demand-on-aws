@@ -64,14 +64,14 @@ In your Parallel Cluster config, you must set the following values:
     1. AdditionalScurityGroups: HeadNodeSecurityGroup from CloudFormation Outputs
     1. AdditionalIAMPolicies: HeadNodeIAMPolicyArn from CloudFormation Outputs
     1. OnNodeConfigured
-        1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_head_node_v2.sh`
+        1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_head_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
 1. SlurmQueues:
     1. SubnetId: PrivateSubnet1 from OOD Stack Output
     1. AdditionalScurityGroups: ComputeNodeSecurityGroup from CloudFormation Outputs
     1. AdditionalIAMPolicies: ComputeNodeIAMPolicyArn from CloudFormation Outputs
     1. OnNodeConfigured
-        1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node_v2.sh`
+        1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
 
 ### Enabling Interactive Desktops
