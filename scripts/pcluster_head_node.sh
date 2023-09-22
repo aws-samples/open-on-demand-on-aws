@@ -120,3 +120,11 @@ systemctl restart slurmdbd
 systemctl restart slurmctld # TODO: Investigate why this fixes clusters not registered issues
 
 aws s3 cp /etc/ood/config/clusters.d/$STACK_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$STACK_NAME.yml
+
+# Generate bc_desktop file for optional desktop interactive apps
+mkdir -p /etc/ood/config/apps/bc_desktop
+cat << EOF > /etc/ood/config/apps/bc_desktop/$STACK_NAME.yml
+---
+title: "$STACK_NAME Desktop"
+cluster: "$STACK_NAME"
+EOF
