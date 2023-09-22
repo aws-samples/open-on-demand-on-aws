@@ -2,10 +2,12 @@
 # SPDX-License-Identifier: MIT-0
 #!/bin/bash
 
-yum -y -q install jq mysql amazon-efs-utils
+yum -y -q install jq amazon-efs-utils
+
+TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
 # Get OOD Stack data
 OOD_STACK_NAME=$1
-REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)
+REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/placement/region)
 
 OOD_STACK=$(aws cloudformation describe-stacks --stack-name $OOD_STACK_NAME --region $REGION )
 
@@ -21,7 +23,7 @@ systemctl restart munge
 
 # Add entry for fstab so mounts on restart
 mkdir /shared
-echo "$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
+echo "$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
 mount -a
 
 # Add spack-users group
@@ -37,3 +39,7 @@ sed -i 's/use_fully_qualified_names = True/use_fully_qualified_names = False/g' 
 sed -i 's/fallback_homedir = \/home\/%u/fallback_homedir = \/shared\/home\/%u/' -i /etc/sssd/sssd.conf
 sleep 1
 systemctl restart sssd
+
+cat >> /etc/bashrc << 'EOF'
+PATH=$PATH:/shared/software/bin
+EOF
