@@ -1126,6 +1126,8 @@ Resources:
           Value: !Ref LoadBalancerLogBucket
         - Key: access_logs.s3.prefix
           Value: ldap-nlb
+        - Key: idle_timeout.timeout_seconds # Required to address issue with OOD SSH timeout
+          Value: 600
       Scheme: internal
       Subnets:
         - !Ref PrivateSubnet1
