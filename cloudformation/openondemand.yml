@@ -768,9 +768,7 @@ Resources:
             configure_cert:
               command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_instance_cert.sh
           sources:
-            # /etc/ood-install: !Sub https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
-            # TODO swap to aws-samples once PR ready
-            /etc/ood-install: !Sub https://github.com/dmorand17/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
+            /etc/ood-install: !Sub https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
           files: # Creates a file with appropriate variables for use in scripts. No secrets in here
             /etc/ood-install/set_variables.sh:
               content: !Sub |
