@@ -66,52 +66,57 @@ Parameters:
     Description: Branch of the code to deploy. Only use this when testing changes to the solution
     Default: main
     Type: String
+  SlurmVersion:
+    Description: Verion of slurm to install
+    Default: 23.02.5
+    Type: String
 Mappings:
+  # Ubuntu 22.04
   RegionMap:
     us-east-1:
-      AMIID: ami-01c2b1fd90d50901d
+      AMIID: ami-0408adfcef670a71e
       ALBLogAccount: 127311923021
     us-east-2:
-      AMIID: ami-09c56d1aaec7893bb
+      AMIID: ami-004dae62019936191
       ALBLogAccount: 033677994240
     us-west-1:
-      AMIID: ami-0c552519e34d33e2b
+      AMIID: ami-035663315c4daae24
       ALBLogAccount: 027434742980
     us-west-2:
-      AMIID: ami-0e97835d93735ae57
+      AMIID: ami-0f1a3eb997d0e161a
       ALBLogAccount: 797873946194
     ap-northeast-1:
-      AMIID: ami-061612a599ab4a957
+      AMIID: ami-06f25f372d5d98da3
       ALBLogAccount: 582318560864
     ap-northeast-2:
-      AMIID: ami-08536dc629652c707
+      AMIID: ami-0610630c2df4f6edd
       ALBLogAccount: 600734575887
     ap-south-1:
-      AMIID: ami-0d34439bc3c3e6794
+      AMIID: ami-078bee86ac7c5ec2d
       ALBLogAccount: 718504428378
     ap-southeast-1:
-      AMIID: ami-047f51f51fcfb9b38
+      AMIID: ami-081ab28ecb8f9f07f
       ALBLogAccount: 114774131450
     ap-southeast-2:
-      AMIID: ami-079721dc03e3366ac
+      AMIID: ami-02e33cab84ad3b7e5
       ALBLogAccount: 783225319266
     ca-central-1:
-      AMIID: ami-0f9e51aefa079a3f3
+      AMIID: ami-0d4b8b87818b26421
       ALBLogAccount: 985666609251
     eu-central-1:
-      AMIID: ami-0d062d04fc349b92d
+      AMIID: ami-0071fbe485985432e
       ALBLogAccount: 054676820928
     eu-north-1:
-      AMIID: ami-0ba80a09a6f5d7c9d
+      AMIID: ami-0d534fbf90e256d14
       ALBLogAccount: 027434742980
     eu-west-1:
-      AMIID: ami-0660a33b46d1311c0
+      AMIID: ami-01b1f2cdbfcb3644e
       ALBLogAccount: 156460612806
     eu-west-2:
-      AMIID: ami-0dc906b44a3fc35eb
+      AMIID: ami-0103fdca60001bd3c
       ALBLogAccount: 652711504416
     eu-west-3:
-      AMIID: ami-0103dc69ed3abc61f
+      AMIID: ami-0f2c91ec8df4bde48
       ALBLogAccount: 009996457667
 Resources:
 
@@ -373,6 +378,18 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::${AWS::Region}-aws-parallelcluster/*
               - !Sub arn:${AWS::Partition}:s3:::dcv-license.${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::cloudformation-waitcondition-${AWS::Region}/*
+          - Effect: Allow # Allows access to buckets required for systems manager
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::aws-windows-downloads-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::amazon-ssm-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::amazon-ssm-packages-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::${AWS::Region}-birdwatcher-prod/*",
+              - !Sub arn:${AWS::Partition}:s3:::aws-ssm-document-attachments-${AWS::Region}/*",
+              - !Sub arn:${AWS::Partition}:s3:::patch-baseline-snapshot-${AWS::Region}/*",
+              - !Sub arn:${AWS::Partition}:s3:::aws-ssm-${AWS::Region}/*",
+              - !Sub arn:${AWS::Partition}:s3:::aws-patchmanager-macos-${AWS::Region}/*"
 
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -725,13 +742,21 @@ Resources:
       AWS::CloudFormation::Init:
         configSets:
           config:
+            - initsetup
             - config
             - setupInfrastructure
             - slurm
             - ood
+        initsetup:
+          commands:
+            initsetupcmd:
+              command: |
+                apt update -y -q
+                sed -i "/#\$nrconf{restart} = 'i';/s/.*/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf
+                touch /var/log/install.txt
         config:
           packages:
-            yum:
+            apt:
               awscli: []
               jq: []
               realmd: []
@@ -739,10 +764,6 @@ Resources:
           commands:
             initial_setup:
               command: |
-                setenforce 0
-                sed -i "s/SELINUX=enforcing/SELINUX=permissive/" /etc/selinux/config
-                dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -y
-                dnf config-manager --set-enabled powertools -y
                 groupadd spack-users -g 4000
             configure_cert:
               command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_instance_cert.sh
@@ -762,6 +783,7 @@ Resources:
                 export LDAP_NLB=${NLB.DNSName}
                 export EFS_ID=${SharedFileSystem}
                 export CLUSTER_CONFIG_BUCKET=${ClusterConfigBucket}
+                export SLURM_VERSION=${SlurmVersion}
               mode: "000744"
               owner: "root"
               group: "root"
@@ -776,32 +798,34 @@ Resources:
               ensureRunning: "true"
         setupInfrastructure:
           commands:
-            configure_cloudwatch:
+            1_configure_cloudwatch:
               command: ./configure_cloudwatch_metrics.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
-            mount_efs:
+            2_mount_efs:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./mount_efs.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
-            configure_mkhomedir:
+            3_configure_mkhomedir:
               command: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_mkhomedir.sh
-            upload_pcluster_configs:
+            4_upload_pcluster_configs:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./upload_pcluster_configs.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
         slurm:
           commands:
-            install_munge:
+            1_install_munge:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./install_munge.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
-            install_slurm:
-              command: ./install_slurm.sh
+            2_install_slurm:
+              command: |
+                . /etc/ood-install/set_variables.sh
+                ./install_slurm.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
-            configure_accounting:
+            3_configure_slurm_accounting:
               command: |
                 . /etc/ood-install/set_variables.sh
                 ./configure_slurm_accounting.sh
@@ -839,11 +863,6 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
-            dnf install -y https://s3.${AWS::Region}.amazonaws.com/amazon-ssm-${AWS::Region}/latest/linux_amd64/amazon-ssm-agent.rpm
-            systemctl enable amazon-ssm-agent
-            systemctl start amazon-ssm-agent
-            yum install -y -q epel-release
-            yum install -y -q python3
             cd /opt
             curl -O https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
             tar -xvpf aws-cfn-bootstrap-py3-latest.tar.gz
@@ -1105,6 +1124,8 @@ Resources:
           Value: !Ref LoadBalancerLogBucket
         - Key: access_logs.s3.prefix
           Value: ldap-nlb
+        - Key: idle_timeout.timeout_seconds # Required to address issue with OOD SSH timeout
+          Value: 600
       Scheme: internal
       Subnets:
         - !Ref PrivateSubnet1
@@ -1395,7 +1416,7 @@ Resources:
   AuroraDBPrimaryInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceClass: db.t3.small
+      DBInstanceClass: db.t3.medium
       DBClusterIdentifier: !Ref AuroraDBCluster
       Engine: aurora-mysql
       AutoMinorVersionUpgrade: true

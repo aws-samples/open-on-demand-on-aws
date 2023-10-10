@@ -1,11 +1,9 @@
 #!/bin/bash
-
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
 # Install packages for domain
 yum -y -q install jq amazon-efs-utils
-
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/placement/region)
 INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v -s http://169.254.169.254/latest/meta-data/instance-id)
@@ -94,7 +92,6 @@ StoragePass=$RDS_PASSWORD
 StorageHost=$RDS_ENDPOINT # Endpoint from RDS console
 StoragePort=$RDS_PORT  # Port from RDS console
 StorageLoc=$RDS_DBNAME
-
 EOF
 
 cat << EOF >> /opt/slurm/etc/slurm.conf

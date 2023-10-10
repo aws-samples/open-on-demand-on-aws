@@ -1,12 +1,13 @@
+#!/bin/bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
-yum install slurm-slurmdbd -y -q
 
 export RDS_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $RDS_SECRET_ID --query SecretString --output text)
 export RDS_USER=$(echo $RDS_SECRET | jq -r ".username")
 export RDS_PASSWORD=$(echo $RDS_SECRET | jq -r ".password")
 export RDS_ENDPOINT=$(echo $RDS_SECRET | jq -r ".host")
 export RDS_PORT=$(echo $RDS_SECRET | jq -r ".port")
+export RDS_DBNAME=$(echo $RDS_SECRET | jq -r ".dbname")
 
 cat << EOF > /etc/slurm/slurmdbd.conf
 ArchiveEvents=yes
@@ -35,6 +36,7 @@ StorageUser=$RDS_USER
 StoragePass=$RDS_PASSWORD
 StorageHost=$RDS_ENDPOINT # Endpoint from RDS
 StoragePort=$RDS_PORT  # Port from RDS
+StorageLoc=$RDS_DBNAME # DBName from RDS
 EOF
 
 sed -i "s/AccountingStorageType=accounting_storage\/none/AccountingStorageType=accounting_storage\/slurmdbd/" /etc/slurm/slurm.conf
@@ -51,7 +53,8 @@ chmod 600 /etc/slurm/slurmdbd.conf
 chown slurm /etc/slurm/slurmdbd.conf
 
 # Start SLURM accounting
-/sbin/slurmdbd
+# /usr/local/sbin/slurmdbd
+/usr/sbin/slurmctld
 
 # TODO: First find out if the federation exists
 
@@ -66,5 +69,5 @@ fi
 systemctl start slurmdbd
 systemctl enable slurmdbd
 # If this crashes restart; it crashes sometimes
-sed -i '/\[Service]/a Restart=always\nRestartSec=5' /usr/lib/systemd/system/slurmdbd.service
+sed -i '/\[Service]/a Restart=always\nRestartSec=5' /etc/systemd/system/slurmdbd.service
 systemctl daemon-reload
