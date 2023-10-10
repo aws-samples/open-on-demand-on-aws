@@ -2,6 +2,8 @@
 
 This reference architecture provides a set of templates for deploying [Open OnDemand (OOD)](https://openondemand.org/) with [AWS CloudFormation](https://aws.amazon.com/cloudformation/) and integration points for [AWS Parallel Cluster](https://aws.amazon.com/hpc/parallelcluster/).
 
+The main branch is for Open OnDemand v 3.0.0 
+
 ## Architecture
 
 ![architecture](images/architecture.png)
@@ -18,7 +20,7 @@ The primary components of the solution are:
 
 ## Prerequisites
 
-This solution was tested with PCluster version 3.3.1
+This solution was tested with PCluster version 3.7.0. 
 
 1. Route53 domain for your OOD portal
 
