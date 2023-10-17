@@ -44,7 +44,7 @@ HeadNode:
   CustomActions:
     OnNodeConfigured:
       Script: >-
-        s3://$BUCKET_NAME/pcluster_head_node_v2.sh
+        s3://$BUCKET_NAME/pcluster_head_node.sh
       Args:
         - $STACK_NAME
 Scheduling:
@@ -71,7 +71,7 @@ Scheduling:
       CustomActions:
         OnNodeConfigured:
           Script: >-
-            s3://$BUCKET_NAME/pcluster_worker_node_v2.sh
+            s3://$BUCKET_NAME/pcluster_worker_node.sh
           Args:
             - $STACK_NAME
       Iam:
@@ -99,7 +99,7 @@ Scheduling:
       CustomActions:
         OnNodeConfigured:
           Script: >-
-            s3://$BUCKET_NAME/pcluster_worker_node_desktop_v2.sh
+            s3://$BUCKET_NAME/pcluster_worker_node_desktop.sh
           Args:
             - $STACK_NAME
       Iam:
