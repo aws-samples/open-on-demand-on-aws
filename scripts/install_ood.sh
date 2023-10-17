@@ -169,7 +169,7 @@ import sys
 import yaml
 
 '''
-An example of a `bin_overrides` replacing Slurm `sbatch` for use with Open OnDemand.
+An example of a "bin_overrides" replacing Slurm "sbatch" for use with Open OnDemand.
 Executes sbatch on the target cluster vs OOD node to get around painful experiences with sbatch + EFA.
 
 Requirements:
