@@ -562,6 +562,16 @@ Resources:
       GroupId: !GetAtt PortalSecurityGroup.GroupId
       DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
 
+  PortalHeadNodeLoginNodeNLBEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      Description: Allows outbound from portal to NLB for Login Nodes
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      CidrIp: 10.0.0.0/16
+
   PortalComputeNodeEgress:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
