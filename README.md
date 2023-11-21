@@ -20,13 +20,11 @@ The primary components of the solution are:
 
 ## Prerequisites
 
-This solution was tested with PCluster version 3.7.0. 
+This solution was tested with PCluster version 3.7.2. 
 
-1. Route53 domain for your OOD portal
 
 ## Deployment 🚀
-
-1. Download the cloudformation/openondemand.yml template, and use that to create a cloudformation stack in your AWS account and correct region.  
+Download the cloudformation/openondemand.yml template, and use that to create a cloudformation stack in your AWS account and correct region.  
 
 Once deployed, you should be able to navigate to the URL you set up as a CloudFormation parameter and log into your Open OnDemand portal. You can use the username `Admin` and retrieve the default password from Secrets Manager. The correct secret can be identified in the output of the Open OnDemand CloudFormation template via the entry with the key `ADAdministratorSecretArn`.
 
