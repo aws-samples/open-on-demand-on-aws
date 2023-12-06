@@ -49,6 +49,21 @@ In your Parallel Cluster config, you must set the following values:
         1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
 
+### Integration Parallel Cluster Login Node
+
+If [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are being used a configuration script [configure_login_nodes.sh](scripts/configure_login_nodes.sh) can be used to configure the login node and enable it in Open OnDemand.
+
+**Usage**
+Replace the following values:
+- `<OOD_STACK_NAME>` - name of the Open OnDemand stack name found in CloudFormation
+- `<ClusterConfigBucket>` - 'ClusterConfigBucket' Output found in the Open OnDemand stack
+```bash
+S3_CONFIG_BUCKET=<ClusterConfigBucket> 
+aws s3 cp s3://$S3_CONFIG_BUCKET/configure_login_nodes.sh .
+chmod +x configure_login_nodes.sh
+configure_login_nodes.sh <OOD_STACK_NAME>
+```
+
 ### Enabling Interactive Desktops
 
 You can enable interactive clusters on the Portal server by following the directions [here](https://osc.github.io/ood-documentation/latest/enable-desktops/add-cluster.html).
