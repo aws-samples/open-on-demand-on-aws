@@ -116,11 +116,13 @@ if  id "\$1" &> /dev/null; then
     echo "user \$1 home folder doesn't exist, create one " >> /var/log/add_user.log
   #  usermod -a -G spack-users \$1
     sudo mkdir -p /shared/home/\$1 >> /var/log/add_user.log
+    sudo cp /etc/skel/.bashrc /shared/home/\$1
+    sudo cp /etc/skel/.profile /shared/home/\$1
     sudo chown \$1:"Domain Users" /shared/home/\$1 >> /var/log/add_user.log
   #  echo "\$1 $(id -u $1)" >> /shared/userlistfile
     sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
     sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
-    sudo chmod 600 /shared/home/$USER/.ssh/*
+    sudo chmod 600 /shared/home/\$1/.ssh/*
   fi
 fi
 echo \$1
