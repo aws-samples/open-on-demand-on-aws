@@ -57,6 +57,8 @@ If [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/lat
 Replace the following values:
 - `<OOD_STACK_NAME>` - name of the Open OnDemand stack name found in CloudFormation
 - `<ClusterConfigBucket>` - 'ClusterConfigBucket' Output found in the Open OnDemand stack
+
+Run the following script on the login node
 ```bash
 S3_CONFIG_BUCKET=<ClusterConfigBucket> 
 aws s3 cp s3://$S3_CONFIG_BUCKET/configure_login_nodes.sh .
