@@ -66,19 +66,19 @@ In your Parallel Cluster config, you must set the following values:
 2/ [ExclusiveUser](https://slurm.schedmd.com/slurm.conf.html#OPT_ExclusiveUser) should be set to **YES** to cause nodes to be exclusively allocated to users.  This can be set within the `SlurmQueues` section.
 
 ```
-      CustomSlurmSettings:
-        ExclusiveUser: "YES"
+  CustomSlurmSettings:
+    ExclusiveUser: "YES"
 ```
 
 3/ A new script [scripts/configure_pam_slurm_adopt.sh](scripts/configure_pam_slurm_adopt.sh) can be added to the `OnNodeConfigured` configuration within the `SlurmQueues` section to run a sequence of scripts.  
 ```
-      CustomActions:
-        OnNodeConfigured:
-            Sequence:
-            - Script: s3://$ClusterConfigBucket/pcluster_worker_node.sh
-                Args:
-                - Open OnDemand CloudFormation stack name
-            - Script: s3://$ClusterConfigBucket/configure_pam_slurm_adopt.sh
+    CustomActions:
+      OnNodeConfigured:
+        Sequence:
+        - Script: s3://$ClusterConfigBucket/pcluster_worker_node.sh
+            Args:
+            - Open OnDemand CloudFormation stack name
+        - Script: s3://$ClusterConfigBucket/configure_pam_slurm_adopt.sh
 ```
 
 ### Integration Parallel Cluster Login Node
