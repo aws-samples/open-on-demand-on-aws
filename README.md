@@ -49,6 +49,38 @@ In your Parallel Cluster config, you must set the following values:
         1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
 
+#### Optional - Enable pam_slurm_adopt module for Parallel Cluster compute nodes
+
+The [pam_slurm_adopt](https://slurm.schedmd.com/pam_slurm_adopt.html) module can be enabled on the Compute nodes within ParallelCluster to prevent users from sshing into nodes that they do not have a running job on.  
+
+In your Parallel Cluster config, you must set the following values:
+
+1/ Enable the [PrologFlags: "contain"](https://slurm.schedmd.com/pam_slurm_adopt.html#important) should be in place to determine if any jobs have been allocated.  This can be set within the `Scheduling` section.
+
+```
+  SlurmSettings:  
+    CustomSlurmSettings:
+      - PrologFlags: "contain"
+```
+
+2/ [ExclusiveUser](https://slurm.schedmd.com/slurm.conf.html#OPT_ExclusiveUser) should be set to **YES** to cause nodes to be exclusively allocated to users.  This can be set within the `SlurmQueues` section.
+
+```
+      CustomSlurmSettings:
+        ExclusiveUser: "YES"
+```
+
+3/ A new script [scripts/configure_pam_slurm_adopt.sh](scripts/configure_pam_slurm_adopt.sh) can be added to the `OnNodeConfigured` configuration within the `SlurmQueues` section to run a sequence of scripts.  
+```
+      CustomActions:
+        OnNodeConfigured:
+            Sequence:
+            - Script: s3://$ClusterConfigBucket/pcluster_worker_node.sh
+                Args:
+                - Open OnDemand CloudFormation stack name
+            - Script: s3://$ClusterConfigBucket/configure_pam_slurm_adopt.sh
+```
+
 ### Integration Parallel Cluster Login Node
 
 If [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are being used a configuration script [configure_login_nodes.sh](scripts/configure_login_nodes.sh) can be used to configure the login node and enable it in Open OnDemand.
