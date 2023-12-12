@@ -116,9 +116,9 @@ if  id "\$1" &> /dev/null; then
     echo "user \$1 home folder doesn't exist, create one " >> /var/log/add_user.log
   #  usermod -a -G spack-users \$1
     sudo mkdir -p /shared/home/\$1 >> /var/log/add_user.log
-    sudo cp /etc/skel/.bashrc /shared/home/\$1
-    sudo cp /etc/skel/.profile /shared/home/\$1
     sudo chown \$1:"Domain Users" /shared/home/\$1 >> /var/log/add_user.log
+    sudo su \$1 -c 'echo "[ -f /etc/bashrc ] && . /etc/bashrc" > ~/.bashrc'
+    sudo su \$1 -c 'echo "[ -f ~/.bashrc ] && . ~/.bashrc" > ~/.bash_profile'
   #  echo "\$1 $(id -u $1)" >> /shared/userlistfile
     sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
     sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
