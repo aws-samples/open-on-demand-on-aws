@@ -1049,6 +1049,9 @@ Resources:
         RestrictPublicBuckets: true
       VersioningConfiguration:
         Status: Enabled
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
 
   ClusterConfigBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -1204,12 +1207,15 @@ Resources:
       EventPattern:
         source:
           - "aws.s3"
+        detail-type:
+          - "Object Created"
         detail:
-          eventName:
-            - "PutObject"
-          requestParameters:
-            bucketName:
+          bucket:
+            name: 
               - !Ref ClusterConfigBucket
+          object:
+            key:
+              - wildcard: "clusters/*"
       Targets:
         - Id: RunShell
           Arn: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
@@ -1261,70 +1267,6 @@ Resources:
               - Key: tag:ood
                 Values:
                   - !Sub webportal-${AWS::StackName}
-
-  DataTrailBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - BucketKeyEnabled: true
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      VersioningConfiguration:
-        Status: Enabled
-
-  DataTrailBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref DataTrailBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: "AWSCloudTrailAclCheck"
-            Effect: Allow
-            Principal:
-              Service: 'cloudtrail.amazonaws.com'
-            Action: "s3:GetBucketAcl"
-            Resource: !Sub arn:${AWS::Partition}:s3:::${DataTrailBucket}
-          - Sid: "AWSCloudTrailWrite"
-            Effect: Allow
-            Principal:
-              Service: 'cloudtrail.amazonaws.com'
-            Action: "s3:PutObject"
-            Resource: !Sub arn:${AWS::Partition}:s3:::${DataTrailBucket}/AWSLogs/${AWS::AccountId}/*
-            Condition:
-              StringEquals:
-                's3:x-amz-acl': 'bucket-owner-full-control'
-          - Sid: ForceSSLRequests
-            Action:
-              - 's3:*'
-            Effect: Deny
-            Resource:
-              - !Sub arn:${AWS::Partition}:s3:::${DataTrailBucket}
-              - !Sub arn:${AWS::Partition}:s3:::${DataTrailBucket}/*
-            Principal: '*'
-            Condition:
-              Bool:
-                'aws:SecureTransport': "false"
-
-  CloudTrailDataTrail:
-    DependsOn: DataTrailBucketPolicy
-    Type: AWS::CloudTrail::Trail
-    Properties:
-      TrailName: !Sub DataTrail-${ClusterConfigBucket}
-      IsMultiRegionTrail: false
-      IsOrganizationTrail: false
-      IsLogging: true
-      S3BucketName: !Ref DataTrailBucket
-      EventSelectors:
-        - DataResources:
-            - Type: AWS::S3::Object
-              Values:
-                - !Sub ${ClusterConfigBucket.Arn}/
-          ReadWriteType: WriteOnly
 
   DNSRecord:
     Type: AWS::Route53::RecordSet
