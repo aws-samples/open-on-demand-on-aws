@@ -71,52 +71,52 @@ Parameters:
     Default: 23.02.5
     Type: String
 Mappings:
-  # Ubuntu 22.04
+  # RHEL9
   RegionMap:
     us-east-1:
-      AMIID: ami-0408adfcef670a71e
+      AMIID: ami-0690365e480edf904
       ALBLogAccount: 127311923021
     us-east-2:
-      AMIID: ami-004dae62019936191
+      AMIID: ami-02a215fc8acfbe77c
       ALBLogAccount: 033677994240
     us-west-1:
-      AMIID: ami-035663315c4daae24
+      AMIID: ami-0fe565849860f957b
       ALBLogAccount: 027434742980
     us-west-2:
-      AMIID: ami-0f1a3eb997d0e161a
+      AMIID: ami-0890ef6662da1ea99
       ALBLogAccount: 797873946194
     ap-northeast-1:
-      AMIID: ami-06f25f372d5d98da3
+      AMIID: ami-0b4e35120aec5a8be
       ALBLogAccount: 582318560864
     ap-northeast-2:
-      AMIID: ami-0610630c2df4f6edd
+      AMIID: ami-0d9bf36eef0d3b241
       ALBLogAccount: 600734575887
     ap-south-1:
-      AMIID: ami-078bee86ac7c5ec2d
+      AMIID: ami-089443c8bad3454b1
       ALBLogAccount: 718504428378
     ap-southeast-1:
-      AMIID: ami-081ab28ecb8f9f07f
+      AMIID: ami-08e2eedaa72f08a77
       ALBLogAccount: 114774131450
     ap-southeast-2:
-      AMIID: ami-02e33cab84ad3b7e5
+      AMIID: ami-0c2806521480771d7
       ALBLogAccount: 783225319266
     ca-central-1:
-      AMIID: ami-0d4b8b87818b26421
+      AMIID: ami-04d5417b0ab91db86
       ALBLogAccount: 985666609251
     eu-central-1:
-      AMIID: ami-0071fbe485985432e
+      AMIID: ami-0d30265d331de0cb8
       ALBLogAccount: 054676820928
     eu-north-1:
-      AMIID: ami-0d534fbf90e256d14
+      AMIID: ami-0d9146849ac14a0ab
       ALBLogAccount: 027434742980
     eu-west-1:
-      AMIID: ami-01b1f2cdbfcb3644e
+      AMIID: ami-0aec8c0a1256b61f1
       ALBLogAccount: 156460612806
     eu-west-2:
-      AMIID: ami-0103fdca60001bd3c
+      AMIID: ami-0470c1c91334a6e8b
       ALBLogAccount: 652711504416
     eu-west-3:
-      AMIID: ami-0f2c91ec8df4bde48
+      AMIID: ami-03f245c363b9e2f36
       ALBLogAccount: 009996457667
 Resources:
 
@@ -761,20 +761,39 @@ Resources:
           config:
             - initsetup
             - config
+            - installCWA
             - setupInfrastructure
             - slurm
             - ood
         initsetup:
+          packages:
+            yum:
+              unzip: []
+              wget: []
+              git: []
+              make: []
+              rpm-build: []
           commands:
             initsetupcmd:
               command: |
-                apt update -y -q
-                sed -i "/#\$nrconf{restart} = 'i';/s/.*/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf
+                dnf update -y
+                dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+                
+                # Install ssm-agent
+                dnf install -y https://s3.us-east-1.amazonaws.com/amazon-ssm-us-east-1/latest/linux_amd64/amazon-ssm-agent.rpm
+                systemctl enable amazon-ssm-agent
+                systemctl start amazon-ssm-agent
+
+                # Install awscli
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip
+                ./aws/install
+                # Add /usr/local/bin to PATH
+                echo 'export PATH=$PATH:/usr/local/bin' >> /etc/profile
                 touch /var/log/install.txt
         config:
           packages:
-            apt:
-              awscli: []
+            yum:
               jq: []
               realmd: []
               sssd: []
@@ -813,11 +832,13 @@ Resources:
             amazon-ssm-agent:
               enabled: "true"
               ensureRunning: "true"
-        setupInfrastructure:
+        installCWA:
           commands:
             1_configure_cloudwatch:
               command: ./configure_cloudwatch_metrics.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
+        setupInfrastructure:
+          commands:
             2_mount_efs:
               command: |
                 . /etc/ood-install/set_variables.sh

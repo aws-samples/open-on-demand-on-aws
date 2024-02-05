@@ -1,9 +1,19 @@
 #!/bin/bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
-DEBIAN_FRONTEND=noninteractive apt install munge libmunge-dev libmunge2 libssh2-1-dev man2html sshpass -y -q
+#dnf install munge munge-libs -y
+
+# Install munge 0.5.15
+wget https://github.com/dun/munge/releases/download/munge-0.5.15/munge-0.5.15.tar.xz
+dnf -y install zlib-devel openssl-devel bzip2-devel gcc
+rpmbuild -tb munge-0.5.15.tar.xz
+dnf -y install /rpmbuild/RPMS/x86_64/munge-0.5.15-1.el9.x86_64.rpm \
+/rpmbuild/RPMS/x86_64/munge-devel-0.5.15-1.el9.x86_64.rpm \
+/rpmbuild/RPMS/x86_64/munge-libs-0.5.15-1.el9.x86_64.rpm
 
 # Try to copy down the file
+# Add aws cli to path
+export PATH=$PATH:/usr/local/bin
 
 echo "Copying munge key from ${CLUSTER_CONFIG_BUCKET} if found" >> /var/log/install.txt
 # Try to copy down the file if it exists

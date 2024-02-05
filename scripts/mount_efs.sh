@@ -6,8 +6,8 @@
 # Install EFS
 pushd /tmp && git clone https://github.com/aws/efs-utils
 pushd efs-utils
-./build-deb.sh
-apt install ./build/amazon-efs-utils*deb -yq
+make rpm
+dnf install ./build/amazon-efs-utils*rpm -yq
 popd
 
 # # Mount EFS file system

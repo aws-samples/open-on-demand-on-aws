@@ -2,8 +2,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-wget -O /tmp/amazon-cloudwatch-agent.deb https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
-dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
+wget -O /tmp/amazon-cloudwatch-agent.rpm https://amazoncloudwatch-agent.s3.amazonaws.com/redhat/amd64/latest/amazon-cloudwatch-agent.rpm
+rpm -U /tmp/amazon-cloudwatch-agent.rpm
 
 touch /opt/aws/amazon-cloudwatch-agent/bin/config.json
 cat << EOF > /opt/aws/amazon-cloudwatch-agent/bin/config.json
@@ -16,6 +16,11 @@ cat << EOF > /opt/aws/amazon-cloudwatch-agent/bin/config.json
                 "logs_collected": {
                         "files": {
                                 "collect_list": [
+                                        {
+                                                "file_path": "/var/log/cfn-init-cmd.log",
+                                                "log_group_name": "\${AWS::StackName}",
+                                                "log_stream_name": "{instance_id}/cfn-init-cmd.log"
+                                        },
                                         {
                                                 "file_path": "/var/log/slurm/slurmd.log",
                                                 "log_group_name": "\${AWS::StackName}",

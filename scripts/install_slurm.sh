@@ -1,8 +1,14 @@
 #!/bin/bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
-DEBIAN_FRONTEND=noninteractive apt install make build-essential \
-    libmariadb-dev-compat libmariadb-dev libdbus-1-dev -y -q
+yum groupinstall "Development Tools" -y
+
+# Required for cgroup plugin for cgroup/v2
+dnf -y install dbus-devel
+
+# Install MariaDB for accounting_storage/mysql
+curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | bash
+dnf -y install MariaDB-shared MariaDB-devel 
 
 cd /tmp
 wget https://download.schedmd.com/slurm/slurm-"${SLURM_VERSION}".tar.bz2

@@ -2,15 +2,28 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-DEBIAN_FRONTEND=noninteractive apt install python3-pip apache2 -y -q
-# Enable SSL
-a2enmod ssl
-systemctl restart apache2
+# uncomment this for OOD v3.1
+#dnf module enable ruby:3.1 nodejs:18 -y
 
-wget -O /tmp/ondemand-release-web_3.0.0_all.deb https://apt.osc.edu/ondemand/3.0/ondemand-release-web_3.0.0_all.deb
-DEBIAN_FRONTEND=noninteractive apt install /tmp/ondemand-release-web_3.0.0_all.deb
-DEBIAN_FRONTEND=noninteractive apt update -yq
-DEBIAN_FRONTEND=noninteractive apt install ondemand ondemand-dex krb5-user samba -yq
+subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
+dnf install rclone httpd -y
+# Enable SSL
+systemctl restart httpd
+
+dnf -y install https://yum.osc.edu/ondemand/3.0/ondemand-release-web-3.0-1.noarch.rpm
+dnf update -y
+dnf -y install krb5-workstation
+dnf -y install ondemand ondemand-dex 
+
+# Update SELinux to use permissive mode
+sed -i "s/^SELINUX=.*$/SELINUX=permissive/" /etc/selinux/config
+
+# uncomment this for using SELinux
+#dnf -y install ondemand-selinux
+#setsebool -P ondemand_use_slurm=on
+
+# add /usr/local/bin to PATH for aws cli
+export PATH=$PATH:/usr/local/bin
 
 echo "$(date +%Y%m%d-%H%M) | ood installed" >> /var/log/install.txt
 export AD_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_SECRET_ID --query SecretString --output text)
@@ -102,7 +115,7 @@ mkdir -p /etc/ood/config/apps/bc_desktop
 
 # Setup OOD add user; will add local user for AD user if doesn't exist
 touch /var/log/add_user.log
-chown www-data /var/log/add_user.log
+chown apache /var/log/add_user.log
 touch /etc/ood/add_user.sh
 touch /shared/userlistfile
 mkdir -p /shared/home
@@ -116,13 +129,12 @@ if  id "\$1" &> /dev/null; then
     echo "user \$1 home folder doesn't exist, create one " >> /var/log/add_user.log
   #  usermod -a -G spack-users \$1
     sudo mkdir -p /shared/home/\$1 >> /var/log/add_user.log
-    sudo cp /etc/skel/.profile /shared/home/\$1
+    sudo cp /etc/skel/.bashrc /shared/home/\$1
+    sudo cp /etc/skel/.bash_profile /shared/home/\$1
   #  echo "\$1 $(id -u $1)" >> /shared/userlistfile
     sudo chown -R \$1:"Domain Users" /shared/home/$1 >> /var/log/add_user.log
     sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
     sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
-    sudo su \$1 -c 'echo "[ -f /etc/bashrc ] && . /etc/bashrc" > ~/.bashrc'
-    sudo su \$1 -c 'echo "export PATH" >> ~/.profile'
     sudo chmod 600 /shared/home/\$1/.ssh/*
   fi
 fi
@@ -150,10 +162,11 @@ chmod +x /etc/ood/add_user.sh
 #chmod o+w /shared/userlistfile
 
 /opt/ood/ood-portal-generator/sbin/update_ood_portal
-systemctl enable apache2
+systemctl enable httpd
 systemctl enable ondemand-dex
 
 # install bin overrides so sbatch executes on remote node
+dnf -y install python3-pip
 pip3 install sh pyyaml
 #create sbatch log
 touch /var/log/sbatch.log
@@ -259,9 +272,9 @@ if __name__ == '__main__':
 EOF
 
 chmod +x /etc/ood/config/bin_overrides.py
-#Edit sudoers to allow www-data to add users
-echo "www-data  ALL=NOPASSWD: /sbin/adduser" >> /etc/sudoers
-echo "www-data  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+#Edit sudoers to allow apache to add users
+echo "apache  ALL=NOPASSWD: /sbin/adduser" >> /etc/sudoers
+echo "apache  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Setup for interactive desktops with PCluster
 rm -rf /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
