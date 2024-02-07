@@ -657,6 +657,13 @@ Resources:
           - !Ref PrivateSubnet2
         VpcId: !Ref VPC
 
+  # Create a codecommit repo for environment specific OOD setup
+  OpenOnDemandCodeCommitRepo:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: open-on-demand-on-aws
+      RepositoryDescription: Open On Demand on AWS
+
   OODInstanceManagedPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -701,6 +708,11 @@ Resources:
             Action:
               - cloudformation:DescribeStacks
             Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+          # Allow access to codecommit
+          - Effect: Allow
+            Action:
+              - codecommit:*
+            Resource: !GetAtt OpenOnDemandCodeCommitRepo.Arn
 
   OODInstanceRole:
     Type: AWS::IAM::Role
