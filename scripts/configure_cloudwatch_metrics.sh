@@ -2,11 +2,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-wget -O /tmp/amazon-cloudwatch-agent.deb https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
-dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
-
-touch /opt/aws/amazon-cloudwatch-agent/bin/config.json
-cat << EOF > /opt/aws/amazon-cloudwatch-agent/bin/config.json
+cat << EOF > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 {
         "agent": {
                 "metrics_collection_interval": 60,
@@ -100,4 +96,4 @@ cat << EOF > /opt/aws/amazon-cloudwatch-agent/bin/config.json
 }
 EOF
 
-/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json

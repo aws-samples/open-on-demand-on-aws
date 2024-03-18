@@ -1,8 +1,9 @@
 #!/bin/bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
-DEBIAN_FRONTEND=noninteractive apt install make build-essential \
-    libmariadb-dev-compat libmariadb-dev libdbus-1-dev -y -q
+dnf install make rpm-build readline-devel \
+    pam-devel perl-Switch perl-ExtUtils\* mariadb105-devel \
+    dbus-devel -y -q
 
 cd /tmp
 wget https://download.schedmd.com/slurm/slurm-"${SLURM_VERSION}".tar.bz2
@@ -22,6 +23,8 @@ cp etc/cgroup.conf.example /etc/slurm/cgroup.conf
 cp etc/slurmd.service /etc/systemd/system
 cp etc/slurmdbd.service /etc/systemd/system
 cp etc/slurmctld.service /etc/systemd/system
+
+chown slurm -R /etc/slurm
 
 # Create slurm user
 useradd slurm

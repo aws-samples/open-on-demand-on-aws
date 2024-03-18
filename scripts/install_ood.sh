@@ -2,15 +2,13 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-DEBIAN_FRONTEND=noninteractive apt install python3-pip apache2 -y -q
-# Enable SSL
-a2enmod ssl
-systemctl restart apache2
+dnf install python3-pip httpd -y -q
+systemctl restart httpd
 
-wget -O /tmp/ondemand-release-web_3.0.0_all.deb https://apt.osc.edu/ondemand/3.0/ondemand-release-web_3.0.0_all.deb
-DEBIAN_FRONTEND=noninteractive apt install /tmp/ondemand-release-web_3.0.0_all.deb
-DEBIAN_FRONTEND=noninteractive apt update -yq
-DEBIAN_FRONTEND=noninteractive apt install ondemand ondemand-dex krb5-user samba -yq
+wget -O /tmp/ondemand-release-web-3.1-1.amzn2023.noarch.rpm https://yum.osc.edu/ondemand/3.1/ondemand-release-web-3.1-1.amzn2023.noarch.rpm
+dnf install /tmp/ondemand-release-web-3.1-1.amzn2023.noarch.rpm -yq
+dnf update -yq
+dnf install ondemand ondemand-dex krb5-workstation samba -yq
 
 echo "$(date +%Y%m%d-%H%M) | ood installed" >> /var/log/install.txt
 export AD_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_SECRET_ID --query SecretString --output text)
@@ -102,7 +100,7 @@ mkdir -p /etc/ood/config/apps/bc_desktop
 
 # Setup OOD add user; will add local user for AD user if doesn't exist
 touch /var/log/add_user.log
-chown www-data /var/log/add_user.log
+chown apache /var/log/add_user.log
 touch /etc/ood/add_user.sh
 touch /shared/userlistfile
 mkdir -p /shared/home
@@ -150,7 +148,7 @@ chmod +x /etc/ood/add_user.sh
 #chmod o+w /shared/userlistfile
 
 /opt/ood/ood-portal-generator/sbin/update_ood_portal
-systemctl enable apache2
+systemctl enable httpd
 systemctl enable ondemand-dex
 
 # install bin overrides so sbatch executes on remote node
@@ -200,6 +198,7 @@ def run_remote_sbatch(script,host_name, *argv):
     result = ssh(
       '@'.join([USER, host_name]),
       '-oBatchMode=yes',  # ensure that SSH does not hang waiting for a password that will never be sent
+      ',-oUserKnownHostsFile=/dev/null' # ensure that SSH does not try to resolve the hostname of the remote node
       '-oStrictHostKeyChecking=no',
       '/opt/slurm/bin/sbatch',  # the real sbatch on the remote
       *argv,  # any arguments that sbatch should get
@@ -260,8 +259,8 @@ EOF
 
 chmod +x /etc/ood/config/bin_overrides.py
 #Edit sudoers to allow www-data to add users
-echo "www-data  ALL=NOPASSWD: /sbin/adduser" >> /etc/sudoers
-echo "www-data  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+echo "apache  ALL=NOPASSWD: /sbin/adduser" >> /etc/sudoers
+echo "apache  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Setup for interactive desktops with PCluster
 rm -rf /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
