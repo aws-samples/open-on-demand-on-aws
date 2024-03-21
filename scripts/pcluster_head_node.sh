@@ -16,7 +16,6 @@ OOD_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey
 RDS_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="DBSecretId") | .OutputValue')
 EFS_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
 S3_CONFIG_BUCKET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
-MUNGEKEY_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
 
 export RDS_SECRET=$(aws secretsmanager --region $REGION get-secret-value --secret-id $RDS_SECRET_ID --query SecretString --output text)
 export RDS_USER=$(echo $RDS_SECRET | jq -r ".username")
@@ -107,16 +106,6 @@ EOF
 
 chmod 600 /opt/slurm/etc/slurmdbd.conf
 chown slurm /opt/slurm/etc/slurmdbd.conf
-
-# Copy Common Munge Key
-aws secretsmanager get-secret-value \
-    --secret-id "${MUNGEKEY_SECRET}" \
-    --query SecretString \
-    --output text
-    > /etc/munge/munge.key
-chown munge: /etc/munge/munge.key
-chmod 400 /etc/munge/munge.key
-systemctl restart munge
 
 # TODO: Create if doesn't exist (dependson PCluster version)
 #cat <<EOF >> /etc/systemd/system/slurmdbd.service
