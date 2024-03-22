@@ -7,6 +7,7 @@ dnf install munge munge-libs munge-devel libssh2-devel sshpass -y -q
 MUNGEKEY_SECRET=$(aws secretsmanager get-secret-value \
     --secret-id "${MUNGEKEY_SECRET_ID}" \
     --query SecretString \
+    --region "${AWS_REGION}" \
     --output text 2> /dev/null) 
 
 if [[ -z $MUNGEKEY_SECRET ]]; then
@@ -23,8 +24,7 @@ else
     echo "munge key already exists, skipping..." >> /var/log/install.txt
 
     # base64 decode the munge key and write to file
-    MUNGEKEY_SECRET_DECODED=$(echo $MUNGEKEY_SECRET | base64 -d)
-    cat "$MUNGEKEY_SECRET_DECODED" > /etc/munge/munge.key
+    echo -n $MUNGEKEY_SECRET | base64 -d > /etc/munge/munge.key
 fi
 
 chown munge: /etc/munge/munge.key
