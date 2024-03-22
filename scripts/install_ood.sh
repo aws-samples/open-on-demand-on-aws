@@ -5,6 +5,10 @@
 dnf install python3-pip httpd -y -q
 systemctl restart httpd
 
+# Install yq
+wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq &&\
+chmod +x /usr/bin/yq
+
 wget -O /tmp/ondemand-release-web-3.1-1.amzn2023.noarch.rpm https://yum.osc.edu/ondemand/3.1/ondemand-release-web-3.1-1.amzn2023.noarch.rpm
 dnf install /tmp/ondemand-release-web-3.1-1.amzn2023.noarch.rpm -yq
 dnf update -yq
@@ -114,13 +118,12 @@ if  id "\$1" &> /dev/null; then
     echo "user \$1 home folder doesn't exist, create one " >> /var/log/add_user.log
   #  usermod -a -G spack-users \$1
     sudo mkdir -p /shared/home/\$1 >> /var/log/add_user.log
-    sudo cp /etc/skel/.profile /shared/home/\$1
+    sudo cp /etc/skel/.bash_profile /shared/home/\$1
+    sudo cp /etc/skel/.bashrc /shared/home/\$1
   #  echo "\$1 $(id -u $1)" >> /shared/userlistfile
     sudo chown -R \$1:"Domain Users" /shared/home/$1 >> /var/log/add_user.log
     sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
     sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
-    sudo su \$1 -c 'echo "[ -f /etc/bashrc ] && . /etc/bashrc" > ~/.bashrc'
-    sudo su \$1 -c 'echo "export PATH" >> ~/.profile'
     sudo chmod 600 /shared/home/\$1/.ssh/*
   fi
 fi
@@ -198,7 +201,7 @@ def run_remote_sbatch(script,host_name, *argv):
     result = ssh(
       '@'.join([USER, host_name]),
       '-oBatchMode=yes',  # ensure that SSH does not hang waiting for a password that will never be sent
-      ',-oUserKnownHostsFile=/dev/null' # ensure that SSH does not try to resolve the hostname of the remote node
+      '-oUserKnownHostsFile=/dev/null', # ensure that SSH does not try to resolve the hostname of the remote node
       '-oStrictHostKeyChecking=no',
       '/opt/slurm/bin/sbatch',  # the real sbatch on the remote
       *argv,  # any arguments that sbatch should get
@@ -268,5 +271,6 @@ cat << EOF >> /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
 batch_connect:
   template: vnc
   websockify_cmd: "/usr/local/bin/websockify"
+  set_host: "host=\$(hostname | awk '{print \$1}').<%= cluster%>.pcluster"
 EOF
 shutdown -r now

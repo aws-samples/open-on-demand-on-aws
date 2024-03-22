@@ -1237,7 +1237,10 @@ Resources:
           RoleArn: !GetAtt EventBridgeRole.Arn
           Input: !Sub |
            {
-            "commands": ["aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/"]
+            "commands": [
+              "aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/",
+              "/etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_cluster_for_ood.sh"
+            ]
            }
           RunCommandParameters:
             RunCommandTargets:
@@ -1269,10 +1272,11 @@ Resources:
                     "IFS='/ ' read -r -a array <<< '<stackName>'",
                     "stackName=${!array[1]}",
                     "tags=$(aws cloudformation describe-stacks --stack-name $stackName --region ${AWS::Region} --query \"Stacks[0].Tags[?Key=='parallelcluster:version']\" --output text)",
-                    "if [ ! -z \"$tags\" ];",
-                    "then",
+                    "if [ ! -z \"$tags\" ]; then",
                     " aws s3 rm s3://${ClusterConfigBucket}/clusters/$stackName.yml",
                     " rm /etc/ood/config/clusters.d/$stackName.yml",
+                    " rm /etc/ood/config/apps/bc_desktop/$stackName.yml",
+                    " rm /etc/ssh/ssh_config.d/ood_$stackName.conf",
                     " sacctmgr remove cluster $stackName -i",
                     "fi"
                   ]

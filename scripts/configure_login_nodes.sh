@@ -2,7 +2,6 @@
 
 # This script is intended to be run on a login node.
 # It configures the login node with the necessary configuration including:
-# * munge key
 # * EFS mount (/shared)
 # * Fixing the fallback_homedir for sssd
 # * Modifies the cluster configuration used by Open OnDemand to point to the Login Node NLB
@@ -40,17 +39,13 @@ OOD_STACK=$(aws cloudformation describe-stacks --stack-name $OOD_STACK_NAME --re
 STACK_NAME=$(aws ec2 describe-instances --instance-id=$INSTANCE_ID --region $REGION --query 'Reservations[].Instances[].Tags[?Key==`parallelcluster:cluster-name`].Value' --output text)
 EFS_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
 S3_CONFIG_BUCKET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
+MUNGEKEY_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
 LOGIN_NODE_STACK_NAME=$(aws cloudformation describe-stack-resources --stack-name $STACK_NAME  --query "StackResources[?starts_with(LogicalResourceId, 'LoginNodes') && ResourceType=='AWS::CloudFormation::Stack'][PhysicalResourceId]" --region $REGION --output text)
 LOGIN_NODE_NLB=$(aws cloudformation describe-stack-resources --stack-name $LOGIN_NODE_STACK_NAME --query "StackResources[?ResourceType=='AWS::ElasticLoadBalancingV2::LoadBalancer'][PhysicalResourceId]" --region $REGION --output text)
 LOGIN_NODE_NLB_DNS_NAME=$(aws elbv2 describe-load-balancers --load-balancer-arns $LOGIN_NODE_NLB --query "LoadBalancers[].DNSName" --region $REGION --output text)
 
 echo "[-] Enabling login nodes for ParallelCluster"
 echo "[-] s3 config bucket -> '${S3_CONFIG_BUCKET}'"
-
-aws s3 cp s3://$S3_CONFIG_BUCKET/munge.key /etc/munge/munge.key &> /dev/null
-chown munge: /etc/munge/munge.key
-chmod 400 /etc/munge/munge.key
-systemctl restart munge
 
 if [[ ! -d /shared ]]; then
   echo "[-] Configuring EFS -> '$EFS_ID'"
