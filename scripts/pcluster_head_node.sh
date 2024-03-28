@@ -26,7 +26,7 @@ export RDS_DBNAME=$(echo $RDS_SECRET | jq -r ".dbname")
 
 # Add entry for fstab so mounts on restart
 mkdir /shared
-echo "$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
+echo "$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
 mount -a
 
 # Add spack-users group
@@ -106,12 +106,6 @@ EOF
 
 chmod 600 /opt/slurm/etc/slurmdbd.conf
 chown slurm /opt/slurm/etc/slurmdbd.conf
-
-# Copy Common Munge Key
-aws s3 cp s3://$S3_CONFIG_BUCKET/munge.key /etc/munge/munge.key
-chown munge: /etc/munge/munge.key
-chmod 400 /etc/munge/munge.key
-systemctl restart munge
 
 # TODO: Create if doesn't exist (dependson PCluster version)
 #cat <<EOF >> /etc/systemd/system/slurmdbd.service
