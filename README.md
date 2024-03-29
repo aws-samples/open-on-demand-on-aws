@@ -2,7 +2,7 @@
 
 This reference architecture provides a set of templates for deploying [Open OnDemand (OOD)](https://openondemand.org/) with [AWS CloudFormation](https://aws.amazon.com/cloudformation/) and integration points for [AWS Parallel Cluster](https://aws.amazon.com/hpc/parallelcluster/).
 
-The main branch is for Open OnDemand v 3.0.0 
+The main branch is for Open OnDemand v 3.1.1
 
 ## Architecture
 
@@ -20,7 +20,7 @@ The primary components of the solution are:
 
 ## Prerequisites
 
-This solution was tested with PCluster version 3.7.2. 
+This solution was tested with PCluster version 3.9.0 
 
 
 ## Deployment 🚀
@@ -51,26 +51,34 @@ In your Parallel Cluster config, you must set the following values:
 
 #### Optional - Enable pam_slurm_adopt module for Parallel Cluster compute nodes
 
-The [pam_slurm_adopt](https://slurm.schedmd.com/pam_slurm_adopt.html) module can be enabled on the Compute nodes within ParallelCluster to prevent users from sshing into nodes that they do not have a running job on.  
+The [pam_slurm_adopt](https://slurm.schedmd.com/pam_slurm_adopt.html) module can be enabled on Compute nodes in ParallelCluster to prevent users from ssh'ing to nodes they do not have a job running.
 
-In your Parallel Cluster config, you must set the following values:
+In your Parallel Cluster config, update the following configuration(s):
 
-1/ Enable the [PrologFlags: "contain"](https://slurm.schedmd.com/pam_slurm_adopt.html#important) should be in place to determine if any jobs have been allocated.  This can be set within the `Scheduling` section.
+1/ Check if any steps have been launched.
 
+Add the **CustomSlurmSetting** `PrologFlags: "contain"` in the [Scheduling](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html) section.  Refer to [slurm configuration](https://slurm.schedmd.com/pam_slurm_adopt.html#important) documentation for more details on this slurm setting.
+
+*example*
 ```
   SlurmSettings:  
     CustomSlurmSettings:
       - PrologFlags: "contain"
 ```
 
-2/ [ExclusiveUser](https://slurm.schedmd.com/slurm.conf.html#OPT_ExclusiveUser) should be set to **YES** to cause nodes to be exclusively allocated to users.  This can be set within the `SlurmQueues` section.
+2/ Ensure compute nodes are exclusively allocated to users.  
 
+Add the **CustomSlurmSetting** `ExclusiveUser: "YES"` in the [SlurmQueues](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmQueues) section.  Refer to [slurm partition configuration](https://slurm.schedmd.com/slurm.conf.html#OPT_ExclusiveUser) for more details.
+
+*example*
 ```
   CustomSlurmSettings:
     ExclusiveUser: "YES"
 ```
 
-3/ A new script [scripts/configure_pam_slurm_adopt.sh](scripts/configure_pam_slurm_adopt.sh) can be added to the `OnNodeConfigured` configuration within the `SlurmQueues` section to run a sequence of scripts.  
+3/ Add [configure_pam_slurm_adopt.sh](scripts/configure_pam_slurm_adopt.sh) to **OnNodeConfigured** in the [CustomActions](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmQueues-CustomActions) section.  
+
+*example*
 ```
     CustomActions:
       OnNodeConfigured:
@@ -81,9 +89,9 @@ In your Parallel Cluster config, you must set the following values:
         - Script: s3://$ClusterConfigBucket/configure_pam_slurm_adopt.sh
 ```
 
-### Integration Parallel Cluster Login Node
+### Integration with Parallel Cluster Login Node
 
-If [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are being used a configuration script [configure_login_nodes.sh](scripts/configure_login_nodes.sh) can be used to configure the login node and enable it in Open OnDemand.
+If [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are used in the ParallelCluster [configure_login_nodes.sh](scripts/configure_login_nodes.sh) can be used to configure the login node for Open OnDemand.
 
 **Usage**
 Replace the following values:
@@ -112,6 +120,10 @@ nameserver 10.0.0.2
 ```
 
 This requires you to have a compute queue with `pcluster_worker_node_desktop.sh` as your `OnNodeConfigured` script.
+
+## RHEL9 support
+
+RHEL9 has been added as another deployment option.  To deploy use the [rhel9-support](https://github.com/aws-samples/open-on-demand-on-aws/tree/rhel9-support) branch for deployment.
 
 ## Security
 

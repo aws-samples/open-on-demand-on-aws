@@ -107,12 +107,6 @@ EOF
 chmod 600 /opt/slurm/etc/slurmdbd.conf
 chown slurm /opt/slurm/etc/slurmdbd.conf
 
-# Copy Common Munge Key
-aws s3 cp s3://$S3_CONFIG_BUCKET/munge.key /etc/munge/munge.key
-chown munge: /etc/munge/munge.key
-chmod 400 /etc/munge/munge.key
-systemctl restart munge
-
 # TODO: Create if doesn't exist (dependson PCluster version)
 #cat <<EOF >> /etc/systemd/system/slurmdbd.service
 #[Unit]

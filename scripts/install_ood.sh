@@ -3,14 +3,18 @@
 # SPDX-License-Identifier: MIT-0
 
 # uncomment this for OOD v3.1
-#dnf module enable ruby:3.1 nodejs:18 -y
+dnf module enable ruby:3.1 nodejs:18 -y
 
 subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
 dnf install rclone httpd -y
 # Enable SSL
 systemctl restart httpd
 
-dnf -y install https://yum.osc.edu/ondemand/3.0/ondemand-release-web-3.0-1.noarch.rpm
+# Install yq
+wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq &&\
+chmod +x /usr/bin/yq
+
+dnf -y install https://yum.osc.edu/ondemand/3.1/ondemand-release-web-3.1-1.el9.noarch.rpm
 dnf update -y
 dnf -y install krb5-workstation
 dnf -y install ondemand ondemand-dex 
@@ -30,7 +34,7 @@ export AD_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --se
 export AD_PASSWORD=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_PASSWORD --query SecretString --output text)
 export ALB_NAME=${!ALB_DNS_NAME,,} # Need to make it lower case as apache is case sensitive
 
-cat << EOF >> /etc/sssd/sssd.conf
+cat << EOF >> /etc/sssd/sssd.conf 
 [domain/$DOMAIN_NAME.$TOP_LEVEL_DOMAIN]
 cache_credentials = True
 debug_level = 0x1ff
@@ -213,6 +217,7 @@ def run_remote_sbatch(script,host_name, *argv):
     result = ssh(
       '@'.join([USER, host_name]),
       '-oBatchMode=yes',  # ensure that SSH does not hang waiting for a password that will never be sent
+      '-oUserKnownHostsFile=/dev/null', # ensure that SSH does not try to resolve the hostname of the remote node
       '-oStrictHostKeyChecking=no',
       '/opt/slurm/bin/sbatch',  # the real sbatch on the remote
       *argv,  # any arguments that sbatch should get
@@ -282,5 +287,6 @@ cat << EOF >> /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
 batch_connect:
   template: vnc
   websockify_cmd: "/usr/local/bin/websockify"
+  set_host: "host=\$(hostname | awk '{print \$1}').<%= cluster%>.pcluster"
 EOF
 shutdown -r now

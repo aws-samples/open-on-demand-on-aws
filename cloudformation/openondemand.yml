@@ -68,7 +68,7 @@ Parameters:
     Type: String
   SlurmVersion:
     Description: Verion of slurm to install
-    Default: 23.02.5
+    Default: 23.11.4
     Type: String
 Mappings:
   # RHEL9
@@ -378,6 +378,8 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::${AWS::Region}-aws-parallelcluster/*
               - !Sub arn:${AWS::Partition}:s3:::dcv-license.${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::cloudformation-waitcondition-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*
+
           - Effect: Allow # Allows access to buckets required for systems manager
             Principal: "*"
             Action: "s3:GetObject"
@@ -390,7 +392,7 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::patch-baseline-snapshot-${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::aws-ssm-${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::aws-patchmanager-macos-${AWS::Region}/*
-
+              - !Sub arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -677,6 +679,12 @@ Resources:
               - !Ref OpenOnDemandSecrets
               - !Ref AuroraMasterSecret
           - Effect: Allow
+            Action: 
+              - secretsmanager:GetSecretValue
+              - secretsmanager:PutSecretValue
+            Resource:
+              - !Ref MungeKeySecret
+          - Effect: Allow
             Action:
               - s3:GetObject
               - s3:PutObject
@@ -765,6 +773,13 @@ Resources:
         - Key: idle_timeout.timeout_seconds # Required to address issue with OOD SSH timeout
           Value: 600          
 
+  # Add a new secrets manager entry
+  MungeKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Munge Key for Open OnDemand
+      Name: !Sub [ "MungeKey-${StackIdSuffix}", { StackIdSuffix: !Select [ 1, !Split [ '/', !Ref 'AWS::StackId' ] ] } ]
+
   OpenOnDemandLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Metadata:
@@ -832,6 +847,7 @@ Resources:
                 export EFS_ID=${SharedFileSystem}
                 export CLUSTER_CONFIG_BUCKET=${ClusterConfigBucket}
                 export SLURM_VERSION=${SlurmVersion}
+                export MUNGEKEY_SECRET_ID=${MungeKeySecret}
               mode: "000744"
               owner: "root"
               group: "root"
@@ -1255,7 +1271,10 @@ Resources:
           RoleArn: !GetAtt EventBridgeRole.Arn
           Input: !Sub |
            {
-            "commands": ["aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/"]
+            "commands": [
+              "aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/",
+              "/etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_cluster_for_ood.sh"
+            ]
            }
           RunCommandParameters:
             RunCommandTargets:
@@ -1287,10 +1306,11 @@ Resources:
                     "IFS='/ ' read -r -a array <<< '<stackName>'",
                     "stackName=${!array[1]}",
                     "tags=$(aws cloudformation describe-stacks --stack-name $stackName --region ${AWS::Region} --query \"Stacks[0].Tags[?Key=='parallelcluster:version']\" --output text)",
-                    "if [ ! -z \"$tags\" ];",
-                    "then",
+                    "if [ ! -z \"$tags\" ]; then",
                     " aws s3 rm s3://${ClusterConfigBucket}/clusters/$stackName.yml",
                     " rm /etc/ood/config/clusters.d/$stackName.yml",
+                    " rm /etc/ood/config/apps/bc_desktop/$stackName.yml",
+                    " rm /etc/ssh/ssh_config.d/ood_$stackName.conf",
                     " sacctmgr remove cluster $stackName -i",
                     "fi"
                   ]
@@ -1420,11 +1440,14 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Action: secretsmanager:GetSecretValue
+            Action: 
+              - secretsmanager:GetSecretValue
+              - secretsmanager:DescribeSecret
             Resource:
               - !Ref OpenOnDemandSecrets
               - !Ref AuroraMasterSecret
               - !Ref ADAdministratorSecret
+              - !Ref MungeKeySecret
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -1496,6 +1519,9 @@ Outputs:
   DBSecretId:
     Description: DB Secret ARN
     Value: !Ref AuroraMasterSecret
+  MungeKeySecretId:
+    Description: Munge Key Secret ARN
+    Value: !Ref MungeKeySecret
   EFSMountId:
     Description: EFS Mount ID
     Value: !Ref SharedFileSystem
