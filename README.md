@@ -2,7 +2,7 @@
 
 This reference architecture provides a set of templates for deploying [Open OnDemand (OOD)](https://openondemand.org/) with [AWS CloudFormation](https://aws.amazon.com/cloudformation/) and integration points for [AWS Parallel Cluster](https://aws.amazon.com/hpc/parallelcluster/).
 
-The main branch is for Open OnDemand v 3.0.0 
+The main branch is for Open OnDemand v 3.1.1
 
 ## Architecture
 
@@ -20,7 +20,7 @@ The primary components of the solution are:
 
 ## Prerequisites
 
-This solution was tested with PCluster version 3.7.2. 
+This solution was tested with PCluster version 3.9.0 
 
 
 ## Deployment 🚀
@@ -89,9 +89,9 @@ Add the **CustomSlurmSetting** `ExclusiveUser: "YES"` in the [SlurmQueues](https
         - Script: s3://$ClusterConfigBucket/configure_pam_slurm_adopt.sh
 ```
 
-### Integration Parallel Cluster Login Node
+### Integration with Parallel Cluster Login Node
 
-If [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are being used a configuration script [configure_login_nodes.sh](scripts/configure_login_nodes.sh) can be used to configure the login node and enable it in Open OnDemand.
+If [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are used in the ParallelCluster [configure_login_nodes.sh](scripts/configure_login_nodes.sh) can be used to configure the login node for Open OnDemand.
 
 **Usage**
 Replace the following values:
@@ -120,6 +120,10 @@ nameserver 10.0.0.2
 ```
 
 This requires you to have a compute queue with `pcluster_worker_node_desktop.sh` as your `OnNodeConfigured` script.
+
+## RHEL9 support
+
+RHEL9 has been added as another deployment option.  To deploy use the [rhel9-support](https://github.com/aws-samples/open-on-demand-on-aws/tree/rhel9-support) branch for deployment.
 
 ## Security
 
