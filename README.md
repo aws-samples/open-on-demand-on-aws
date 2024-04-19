@@ -49,6 +49,8 @@ In your Parallel Cluster config, you must set the following values:
         1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
 
+**Note:** A sample pcluster configuration can be created using [scripts/create_sample_pcluster_config.sh](scripts/create_sample_pcluster_config.sh)
+
 #### Optional - Enable pam_slurm_adopt module for Parallel Cluster compute nodes
 
 The [pam_slurm_adopt](https://slurm.schedmd.com/pam_slurm_adopt.html) module can be enabled on Compute nodes in ParallelCluster to prevent users from ssh'ing to nodes they do not have a job running.

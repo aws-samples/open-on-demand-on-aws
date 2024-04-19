@@ -4,16 +4,20 @@
 # It needs to read outputs from your OOD stack you already deployed. So you need to have the AWS_PROFILE or access key environment variables set
 # The cluster will have two partitions defined, one for general workload, one for interactive desktop.
 # Please update your
-export STACK_NAME="ood-30"
+export STACK_NAME=$1
 export SSH_KEY='<your SSH_KEY name>'
 
+if [ -z "$STACK_NAME" ]; then
+  # show error and exit
+  echo "Error: Stack name is required"
+  exit 1
+fi
 
-export REGION="us-east-1"
-export DOMAIN_1="rc"
-export DOMAIN_2="local"
+export REGION=${2:-"us-east-1"}
+export DOMAIN_1=${3:-"hpclab"}
+export DOMAIN_2=${4:-"local"}
 
 export OOD_STACK=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION )
-
 
 export AD_SECRET_ARN=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ADAdministratorSecretARN") | .OutputValue')
 export SUBNET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="PrivateSubnet1") | .OutputValue')
@@ -23,7 +27,7 @@ export COMPUTE_SG=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.Outpu
 export COMPUTE_POLICY=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeIAMPolicyArn") | .OutputValue')
 export BUCKET_NAME=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
 export LDAP_ENDPOINT=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="LDAPNLBEndPoint") | .OutputValue')
-
+export MUNGEKEY_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
 
 cat << EOF > ../pcluster-config.yml
 HeadNode:
@@ -49,6 +53,8 @@ HeadNode:
         - $STACK_NAME
 Scheduling:
   Scheduler: slurm
+  SlurmSettings:
+    MungeKeySecretArn: $MUNGEKEY_SECRET_ID
   SlurmQueues:
     - Name: general
       AllocationStrategy: lowest-price
@@ -106,7 +112,6 @@ Scheduling:
         AdditionalIamPolicies:
           - Policy: >-
               $COMPUTE_POLICY
-  SlurmSettings: {}
 Region: $REGION
 Image:
   Os: alinux2
