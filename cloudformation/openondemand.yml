@@ -1435,6 +1435,11 @@ Resources:
               - cloudformation:List*
             Resource:
               - !Ref AWS::StackId
+          - Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:DescribeKey
+            Resource: "*"
 
   ParallelClusterWorkerNodeIAMPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1463,6 +1468,11 @@ Resources:
             Resource:
               - !GetAtt ClusterConfigBucket.Arn
               - !Sub ${ClusterConfigBucket.Arn}/*
+          - Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:DescribeKey
+            Resource: "*"
 Outputs:
   URL:
     Description: URL
