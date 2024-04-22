@@ -1,6 +1,7 @@
 #!/bin/bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
+echo "[-] Installing prerequisites for slurm"
 dnf install make rpm-build readline-devel \
     pam-devel perl-Switch perl-ExtUtils\* mariadb105-devel \
     dbus-devel -y -q
@@ -9,12 +10,15 @@ cd /tmp
 wget https://download.schedmd.com/slurm/slurm-"${SLURM_VERSION}".tar.bz2
 tar -xvjf slurm-"${SLURM_VERSION}".tar.bz2
 cd slurm-"${SLURM_VERSION}"
+echo "[-] configuring slurm"
 ./configure --prefix=/usr --sysconfdir=/etc/slurm;
+echo "[-] configuring slurm"
 make -j$(nproc)
 make contrib
 make install
 make install-contrib
 
+echo "[-] finishing installing slurm"
 mkdir /etc/slurm
 
 cp etc/slurm.conf.example /etc/slurm/slurm.conf
