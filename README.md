@@ -127,6 +127,31 @@ This requires you to have a compute queue with `pcluster_worker_node_desktop.sh`
 
 RHEL9 has been added as another deployment option.  To deploy use the [rhel9-support](https://github.com/aws-samples/open-on-demand-on-aws/tree/rhel9-support) branch for deployment.
 
+## Troubleshooting
+
+### Issue submitting jobs after adding a ParallelCluster
+
+There can be errors submitting jobs after integrating OOD w/ParalleCluster due to slurm registering the cluster.  Review the logs found in `/var/log/sbatch.log` and check if there are errors related to available clusters.
+
+*sample log entry*
+```
+vbatch: error: No cluster 'sandbox-cluster' known by database.
+sbatch: error: 'sandbox-cluster' can't be reached now, or it is an invalid entry for --cluster.  Use 'sacctmgr list clusters' to see available clusters.
+```
+
+If this occurs, restart both the `slurmctld` and `slurmdbd` services should be restarted. 
+
+```bash
+systemctl restart slurmctld
+systemctl restart slurmdbd
+```
+
+Once restarted check the available clusters to verify the cluster is listed.
+
+```bash
+sacctmgr list clusters
+```
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.

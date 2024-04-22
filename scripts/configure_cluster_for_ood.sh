@@ -23,13 +23,10 @@ Host ${cluster_host}
   UserKnownHostsFile=/dev/null
   PasswordAuthentication no
 EOF
-done
 
-echo "[+] SSH configuration generated successfully."
-
-# Add open ondemand desktop configuration
-# This configuration assumes there will be slurm queue called 'desktop'
-cat << EOF > /etc/ood/config/apps/bc_desktop/${cluster_name}.yml
+  # Add open ondemand desktop configuration
+  # This configuration assumes there will be slurm queue called 'desktop'
+  cat << EOF > /etc/ood/config/apps/bc_desktop/${cluster_name}.yml
 ---
 title: "Linux Desktop on ${cluster_name}"
 cluster: "${cluster_name}"
@@ -38,3 +35,6 @@ attributes:
   bc_queue: "desktop"
   account: "enduser-research-account"
 EOF
+done
+
+echo "[+] SSH configuration generated successfully."

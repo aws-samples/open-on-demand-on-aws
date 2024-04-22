@@ -12,7 +12,6 @@ tar -xvjf slurm-"${SLURM_VERSION}".tar.bz2
 cd slurm-"${SLURM_VERSION}"
 echo "[-] configuring slurm"
 ./configure --prefix=/usr --sysconfdir=/etc/slurm;
-echo "[-] configuring slurm"
 make -j$(nproc)
 make contrib
 make install

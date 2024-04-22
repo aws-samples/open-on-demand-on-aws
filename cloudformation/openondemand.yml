@@ -874,7 +874,7 @@ Resources:
                 . /etc/ood-install/set_variables.sh
                 ./install_ood.sh
                 aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/
-                ./configure_cluster_for_ood.sh"
+                ./configure_cluster_for_ood.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
     Properties:
       LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
