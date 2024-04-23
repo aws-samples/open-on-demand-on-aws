@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT-0
 # Installs amazon-efs-utils (https://github.com/aws/efs-utils)
 
+dnf -yq install git rpm-build make rust cargo openssl-devel
 # Install EFS
 pushd /tmp && git clone https://github.com/aws/efs-utils
 pushd efs-utils
