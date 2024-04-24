@@ -17,7 +17,6 @@ dnf install ondemand ondemand-dex krb5-workstation samba -yq
 echo "$(date +%Y%m%d-%H%M) | ood installed" >> /var/log/install.txt
 export AD_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_SECRET_ID --query SecretString --output text)
 export AD_PASSWORD=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_PASSWORD --query SecretString --output text)
-export ALB_NAME=${!ALB_DNS_NAME,,} # Need to make it lower case as apache is case sensitive
 
 cat << EOF >> /etc/sssd/sssd.conf
 [domain/$DOMAIN_NAME.$TOP_LEVEL_DOMAIN]

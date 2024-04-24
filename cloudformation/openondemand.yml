@@ -73,49 +73,49 @@ Parameters:
 Mappings:
   RegionMap:
     us-east-1:
-      AMIID: ami-0d7a109bf30624c99
+      AMIID: ami-04e5276ebb8451442
       ALBLogAccount: 127311923021
     us-east-2:
-      AMIID: ami-0e0bf53f6def86294
+      AMIID: ami-09b90e09742640522
       ALBLogAccount: 033677994240
     us-west-1:
-      AMIID: ami-0ce6d733b60360890
+      AMIID: ami-0827b6c5b977c020e
       ALBLogAccount: 027434742980
     us-west-2:
-      AMIID: ami-07bff6261f14c3a45
+      AMIID: ami-0663b059c6536cac8
       ALBLogAccount: 797873946194
     ap-northeast-1:
-      AMIID: ami-034c9ca2bdde7b472
+      AMIID: ami-0c1de55b79f5aff9b
       ALBLogAccount: 582318560864
     ap-northeast-2:
-      AMIID: ami-0ac9b8202b45eeb08
+      AMIID: ami-04c596dcf23eb98d8
       ALBLogAccount: 600734575887
     ap-south-1:
-      AMIID: ami-013168dc3850ef002
+      AMIID: ami-001843b876406202a
       ALBLogAccount: 718504428378
     ap-southeast-1:
-      AMIID: ami-015f72d56355ebc27
+      AMIID: ami-0dc44e17251b74325
       ALBLogAccount: 114774131450
     ap-southeast-2:
-      AMIID: ami-004c37117ce961527
+      AMIID: ami-04e1ec3aaf06b9060
       ALBLogAccount: 783225319266
     ca-central-1:
-      AMIID: ami-0ed90a3b5bde5e371
+      AMIID: ami-085c5194d6f95060c
       ALBLogAccount: 985666609251
     eu-central-1:
-      AMIID: ami-01be94ae58414ab2e
+      AMIID: ami-0f673487d7e5f89ca
       ALBLogAccount: 054676820928
     eu-north-1:
-      AMIID: ami-079ae45378903f993
+      AMIID: ami-029e4db491be76287
       ALBLogAccount: 027434742980
     eu-west-1:
-      AMIID: ami-074254c177d57d640
+      AMIID: ami-0d421d84814b7d51c
       ALBLogAccount: 156460612806
     eu-west-2:
-      AMIID: ami-03c07bedab170b21a
+      AMIID: ami-019a292cfb114a776
       ALBLogAccount: 652711504416
     eu-west-3:
-      AMIID: ami-06f64fb0331ab61a0
+      AMIID: ami-01bf5e7ea6da0b6e1
       ALBLogAccount: 009996457667
 Resources:
 
@@ -870,9 +870,11 @@ Resources:
         ood:
           commands:
             ood_install:
-              command: |
+              command: !Sub |
                 . /etc/ood-install/set_variables.sh
                 ./install_ood.sh
+                aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/
+                ./configure_cluster_for_ood.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
     Properties:
       LaunchTemplateName: !Sub ${AWS::StackName}-launch-template-cfn-init
@@ -1435,6 +1437,11 @@ Resources:
               - cloudformation:List*
             Resource:
               - !Ref AWS::StackId
+          - Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:DescribeKey
+            Resource: "*"
 
   ParallelClusterWorkerNodeIAMPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1463,6 +1470,11 @@ Resources:
             Resource:
               - !GetAtt ClusterConfigBucket.Arn
               - !Sub ${ClusterConfigBucket.Arn}/*
+          - Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:DescribeKey
+            Resource: "*"
 Outputs:
   URL:
     Description: URL

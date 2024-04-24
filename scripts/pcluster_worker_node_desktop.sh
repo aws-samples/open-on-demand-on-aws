@@ -36,6 +36,7 @@ systemctl restart sssd
 ## install remote desktop packages
 ## uncomment the following if you want to run interacctive remote desktop session in OOD
 ##
+echo "Installing nmap-ncat" >> /var/log/configure_desktop.log
 yum install nmap-ncat -y
 
 cat > /etc/yum.repos.d/TurboVNC.repo <<  'EOF'
@@ -48,16 +49,20 @@ gpgkey=https://sourceforge.net/projects/turbovnc/files/VGL-GPG-KEY
 enabled=1
 EOF
 
+echo "Installing turbovnc" >> /var/log/configure_desktop.log
 yum install turbovnc -y
 
 amazon-linux-extras install python3.8
 ln -sf /usr/bin/python3.8 /usr/bin/python3
 
+echo "Installing pip packages" >> /var/log/configure_desktop.log
 pip3 install --no-input websockify
 pip3 install --no-input jupyter
 
+echo "Installing mate-desktop1.x" >> /var/log/configure_desktop.log
 amazon-linux-extras install mate-desktop1.x -y
 
+echo "Updating bashrc" >> /var/log/configure_desktop.log
 #
 cat >> /etc/bashrc << 'EOF'
 PATH=$PATH:/opt/TurboVNC/bin:/shared/software/bin
@@ -71,3 +76,4 @@ EOF
 #sudo yum install rstudio-server-rhel-2023.03.0-386-x86_64.rpm -y
 
 #systemctl start rstudio-server
+echo "DONE" >> /var/log/configure_desktop.log

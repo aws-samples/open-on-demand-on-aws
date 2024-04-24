@@ -49,6 +49,8 @@ In your Parallel Cluster config, you must set the following values:
         1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
 
+**Note:** A sample pcluster configuration can be created using [scripts/create_sample_pcluster_config.sh](scripts/create_sample_pcluster_config.sh)
+
 #### Optional - Enable pam_slurm_adopt module for Parallel Cluster compute nodes
 
 The [pam_slurm_adopt](https://slurm.schedmd.com/pam_slurm_adopt.html) module can be enabled on Compute nodes in ParallelCluster to prevent users from ssh'ing to nodes they do not have a job running.
@@ -124,6 +126,31 @@ This requires you to have a compute queue with `pcluster_worker_node_desktop.sh`
 ## RHEL9 support
 
 RHEL9 has been added as another deployment option.  To deploy use the [rhel9-support](https://github.com/aws-samples/open-on-demand-on-aws/tree/rhel9-support) branch for deployment.
+
+## Troubleshooting
+
+### Issue submitting jobs after adding a ParallelCluster
+
+There can be errors submitting jobs after integrating OOD w/ParalleCluster due to slurm registering the cluster.  Review the logs found in `/var/log/sbatch.log` and check if there are errors related to available clusters.
+
+*sample log entry*
+```
+vbatch: error: No cluster 'sandbox-cluster' known by database.
+sbatch: error: 'sandbox-cluster' can't be reached now, or it is an invalid entry for --cluster.  Use 'sacctmgr list clusters' to see available clusters.
+```
+
+If this occurs, restart both the `slurmctld` and `slurmdbd` services should be restarted. 
+
+```bash
+systemctl restart slurmctld
+systemctl restart slurmdbd
+```
+
+Once restarted check the available clusters to verify the cluster is listed.
+
+```bash
+sacctmgr list clusters
+```
 
 ## Security
 
