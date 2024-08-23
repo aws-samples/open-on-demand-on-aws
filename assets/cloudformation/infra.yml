@@ -1,0 +1,520 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: |-
+  Infrastructure required for the deployment of Open OnDemand on AWS including:
+    - VPC
+    - Private and Public subnets
+    - NAT Gateway
+    - Active Directory
+    - File System
+    - S3 Gateway
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Active Directory
+        Parameters:
+          - DomainName
+          - TopLevelDomain
+      - Label:
+          default: Networking
+        Parameters:
+          - VPCCidrBlock
+          - PublicSubnet1CidrBlock
+          - PublicSubnet2CidrBlock
+          - PrivateSubnet1CidrBlock
+          - PrivateSubnet2CidrBlock
+    ParameterLabels:
+      DomainName:
+        default: Domain Name
+      TopLevelDomain:
+        default: Top level domain
+Parameters:
+  DomainName:
+    Description: Domain name not including the top level domain
+    Default: hpclab
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9]+'
+  TopLevelDomain:
+    Description: TLD for your domain (i.e. local, com, etc)
+    Type: String
+    MinLength: '1'
+    MaxLength: '15'
+    Default: local
+    AllowedPattern: '[a-zA-Z0-9]+'
+  VPCCidrBlock:
+    Description: CIDR block for the VPC
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+  PublicSubnet1CidrBlock:
+    Description: CIDR block for the public subnet located in Availability Zone 1
+    Type: String
+    Default: 10.0.0.0/26
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+  PublicSubnet2CidrBlock:
+    Description: CIDR block for the public subnet located in Availability Zone 2
+    Type: String
+    Default: 10.0.0.128/26
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+  PrivateSubnet1CidrBlock:
+    Description: CIDR block for the private subnet located in Availability Zone 1
+    Type: String
+    Default: 10.0.2.0/24
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+  PrivateSubnet2CidrBlock:
+    Description: CIDR block for the private subnet located in Availability Zone 2
+    Type: String
+    Default: 10.0.3.0/24
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+
+# List of region specific elb account id - https://docs.aws.amazon.com/elasticloadbalancing/latest/application/enable-access-logging.html
+Mappings:
+  RegionMap:
+    us-east-1:
+      ALBLogAccount: 127311923021
+    us-east-2:
+      ALBLogAccount: 033677994240
+    us-west-1:
+      ALBLogAccount: 027434742980
+    us-west-2:
+      ALBLogAccount: 797873946194
+    ap-northeast-1:
+      ALBLogAccount: 582318560864
+    ap-northeast-2:
+      ALBLogAccount: 600734575887
+    ap-south-1:
+      ALBLogAccount: 718504428378
+    ap-southeast-1:
+      ALBLogAccount: 114774131450
+    ap-southeast-2:
+      ALBLogAccount: 783225319266
+    ca-central-1:
+      ALBLogAccount: 985666609251
+    eu-central-1:
+      ALBLogAccount: 054676820928
+    eu-north-1:
+      ALBLogAccount: 027434742980
+    eu-west-1:
+      ALBLogAccount: 156460612806
+    eu-west-2:
+      ALBLogAccount: 652711504416
+    eu-west-3:
+      ALBLogAccount: 009996457667
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - VPC'
+
+  FlowLogLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: {}
+
+  FlowLogDeliveryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 'vpc-flow-logs.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: flowlog-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: !GetAtt FlowLogLogGroup.Arn
+  VPCFlowLogs:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      ResourceId: !Ref VPC
+      ResourceType: VPC
+      TrafficType: ALL
+      DeliverLogsPermissionArn: !GetAtt FlowLogDeliveryRole.Arn
+      LogGroupName: !Ref FlowLogLogGroup
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - InternetGateway'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  NATGW1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  EIP1:
+    DependsOn: AttachGateway
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NATGW2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+
+  EIP2:
+    DependsOn: AttachGateway
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  PublicRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - PublicRouteTable1'
+
+  DefaultPublicRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - PublicRouteTable2'
+
+  DefaultPublicRoute2:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: !Ref PublicSubnet1CidrBlock
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName} - Public Subnet1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: !Ref PublicSubnet2CidrBlock
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - Public Subnet2'
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: !Ref PrivateSubnet1CidrBlock
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - Private Subnet1'
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - PrivateRouteTable1'
+
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGW1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: !Ref PrivateSubnet2CidrBlock
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - Private Subnet2'
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName} - PrivateRouteTable2'
+
+  DefaultPrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGW2
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable1
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable2
+      SubnetId: !Ref PublicSubnet2
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubnet2
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      RouteTableIds:
+        - !Ref PublicRouteTable1
+        - !Ref PublicRouteTable2
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref VPC
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow # Allows access to buckets owned by current account
+            Principal: "*"
+            Action: "s3:*"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "s3:ResourceAccount": !Ref "AWS::AccountId"
+          - Effect: Allow # Allows access to buckets that contains various components of the solution
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::amazon-ssm-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::cloudformation-examples/*
+              - !Sub arn:${AWS::Partition}:s3:::amazoncloudwatch-agent/*
+              - !Sub arn:${AWS::Partition}:s3:::amazonlinux-2-repos-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::${AWS::Region}-aws-parallelcluster/*
+              - !Sub arn:${AWS::Partition}:s3:::dcv-license.${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::cloudformation-waitcondition-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*
+
+          - Effect: Allow # Allows access to buckets required for systems manager
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::aws-windows-downloads-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::amazon-ssm-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::amazon-ssm-packages-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::${AWS::Region}-birdwatcher-prod/*
+              - !Sub arn:${AWS::Partition}:s3:::aws-ssm-document-attachments-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::patch-baseline-snapshot-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::aws-ssm-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::aws-patchmanager-macos-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*
+
+  ADAdministratorSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub AD Secrets for Open On Demand Stack ${AWS::StackName}
+      GenerateSecretString:
+        PasswordLength: 12
+        ExcludeCharacters: '"@/\''$`,;!%<>#'
+
+  ActiveDirectory:
+    Type: AWS::DirectoryService::MicrosoftAD
+    Properties:
+      Edition: Standard
+      Name: !Sub ${DomainName}.${TopLevelDomain}
+      Password: !Sub '{{resolve:secretsmanager:${ADAdministratorSecret}:SecretString}}'
+      VpcSettings:
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        VpcId: !Ref VPC
+
+  LoadBalancerLogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  LoadBalancerLogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LoadBalancerLogBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AWSLogDeliveryWriteNLB"
+            Effect: Allow
+            Principal:
+              Service: 'delivery.logs.amazonaws.com'
+            Action: "s3:PutObject"
+            Resource: !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}/*
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': 'bucket-owner-full-control'
+          - Sid: "AWSLogDeliveryAclCheck"
+            Effect: Allow
+            Principal:
+              Service: 'delivery.logs.amazonaws.com'
+            Action: "s3:GetBucketAcl"
+            Resource: !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}
+          - Sid: "AWSLogDeliveryWriteALB"
+            Effect: Allow
+            Principal:
+              AWS: !Sub
+                - arn:aws:iam::${LogAccount}:root
+                - LogAccount: !FindInMap [RegionMap, !Ref 'AWS::Region', ALBLogAccount]
+            Action: "s3:PutObject"
+            Resource: !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}/*
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': 'bucket-owner-full-control'
+          - Sid: ForceSSLRequests
+            Action:
+              - 's3:*'
+            Effect: Deny
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${LoadBalancerLogBucket}/*
+            Principal: '*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': "false"
+
+  NLB:
+    DependsOn: LoadBalancerLogBucketPolicy
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: !Ref LoadBalancerLogBucket
+        - Key: access_logs.s3.prefix
+          Value: ldap-nlb
+      Scheme: internal
+      Subnets:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Type: network
+
+  LDAPlistener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ADTargetGroup
+      LoadBalancerArn: !Ref NLB
+      Port: 389
+      Protocol: "TCP"
+
+  ADTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      TargetType: ip
+      Protocol: TCP
+      Port: 389
+      VpcId: !Ref VPC
+      Targets:
+        - Id: !Select [0, !GetAtt ActiveDirectory.DnsIpAddresses]
+        - Id: !Select [1, !GetAtt ActiveDirectory.DnsIpAddresses]
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+  PrivateSubnets:
+    Description: Private Subnet IDs
+    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+  PublicSubnets:
+    Description: Private Subnet IDs
+    Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+  TopLevelDomain:
+    Description: Top Level Domain for AD
+    Value: !Ref TopLevelDomain
+  DomainName:
+    Description: DomainName for AD
+    Value: !Ref DomainName
+  DirectoryId:
+    Description: Directory ID
+    Value: !Ref ActiveDirectory
+  ADAdministratorSecretARN:
+    Description: AD Admin Secret ARN
+    Value: !Ref ADAdministratorSecret
+  LDAPNLBEndPoint:
+    Description: LDAP NLB End Point
+    Value: !Sub ${NLB.DNSName}
+  LoadBalancerLogBucket:
+    Description: Load Balancer Log Bucket
+    Value: !Ref LoadBalancerLogBucket

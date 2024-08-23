@@ -5,7 +5,6 @@
 # The cluster will have two partitions defined, one for general workload, one for interactive desktop.
 # Please update your
 export STACK_NAME=$1
-export SSH_KEY='<your SSH_KEY name>'
 
 if [ -z "$STACK_NAME" ]; then
   # show error and exit
@@ -16,25 +15,59 @@ fi
 export REGION=${2:-"us-east-1"}
 export DOMAIN_1=${3:-"hpclab"}
 export DOMAIN_2=${4:-"local"}
+PCLUSTER_FILENAME="pcluster-config.yml"
 
-export OOD_STACK=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION )
+echo "[-] Checking if stack '$STACK_NAME' exists in region '$REGION'..."
+if ! aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION &>/dev/null ; then
+    echo "Error: Failed to describe stack '$STACK_NAME' in region '$REGION'. Please check your stack name and region."
+    exit 1
+fi
 
-export AD_SECRET_ARN=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ADAdministratorSecretARN") | .OutputValue')
-export SUBNET_1=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="PrivateSubnet1") | .OutputValue')
-export SUBNET_2=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="PrivateSubnet2") | .OutputValue')
-export HEAD_SG=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeSecurityGroup") | .OutputValue')
-export HEAD_POLICY=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeIAMPolicyArn") | .OutputValue')
-export COMPUTE_SG=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeSecurityGroup") | .OutputValue')
-export COMPUTE_POLICY=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeIAMPolicyArn") | .OutputValue')
-export BUCKET_NAME=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
-export LDAP_ENDPOINT=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="LDAPNLBEndPoint") | .OutputValue')
-export MUNGEKEY_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
+echo "[-] Reading outputs from stack '$STACK_NAME' in region '$REGION'..."
+export OOD_STACK=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION) 
+export AD_SECRET_ARN=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ADAdministratorSecretARN") | .OutputValue')
+export SUBNETS=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="PrivateSubnets") | .OutputValue')
+export HEAD_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeSecurityGroup") | .OutputValue')
+export HEAD_POLICY=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeIAMPolicyArn") | .OutputValue')
+export COMPUTE_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeSecurityGroup") | .OutputValue')
+export COMPUTE_POLICY=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeIAMPolicyArn") | .OutputValue')
+export BUCKET_NAME=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
+export LDAP_ENDPOINT=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="LDAPNLBEndPoint") | .OutputValue')
+export MUNGEKEY_SECRET_ID=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
 
-cat << EOF > ../pcluster-config.yml
+cat << EOF 
+[+] Using the following values to generate $PCLUSTER_FILENAME
+  DOMAIN_1                    $DOMAIN_1
+  DOMAIN_2                    $DOMAIN_2
+  STACK_NAME                  $STACK_NAME
+  REGION                      $REGION
+  AD_SECRET_ARN               $AD_SECRET_ARN
+  SUBNETS                     $SUBNETS
+  HEAD_SG                     $HEAD_SG
+  HEAD_POLICY                 $HEAD_POLICY
+  COMPUTE_SG                  $COMPUTE_SG
+  COMPUTE_POLICY              $COMPUTE_POLICY
+  BUCKET_NAME                 $BUCKET_NAME
+  LDAP_ENDPOINT               $LDAP_ENDPOINT
+  MUNGKEY_SECRET_ID           $MUNGEKEY_SECRET_ID
+EOF
+
+# Split the subnet string into an array
+IFS=',' read -r -a subnets <<< "$SUBNETS"
+SUBNET_LIST=$(
+for subnet in "${subnets[@]}"; do
+  cat <<EOF
+          - $subnet
+EOF
+done
+)
+
+echo "[-] Buildng $PCLUSTER_FILENAME..."
+cat << EOF > $PCLUSTER_FILENAME
 HeadNode:
   InstanceType: c5.large
   Networking:
-    SubnetId: $SUBNET_1
+    SubnetId: ${subnets[0]}
     AdditionalSecurityGroups:
       - $HEAD_SG
   LocalStorage:
@@ -45,6 +78,7 @@ HeadNode:
     AdditionalIamPolicies:
       - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       - Policy: arn:aws:iam::aws:policy/AmazonS3FullAccess
+      - Policy: arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
       - Policy: $HEAD_POLICY
   CustomActions:
     OnNodeConfigured:
@@ -67,8 +101,17 @@ Scheduling:
           MaxCount: 4
       Networking:
         SubnetIds:
-          - $SUBNET_1
-          - $SUBNET_2
+EOF
+for subnet in "${subnets[@]}"; do
+cat << EOF >> $PCLUSTER_FILENAME
+          - $subnet
+EOF
+done
+# for subnet in "${subnets[@]}"; do
+#   cat << GENERAL >> ../pcluster-config.yml
+#           TEST
+# GENERAL
+cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
       ComputeSettings:
@@ -84,8 +127,8 @@ Scheduling:
             - $STACK_NAME
       Iam:
         AdditionalIamPolicies:
-          - Policy: >-
-              $COMPUTE_POLICY
+          - Policy: $COMPUTE_POLICY
+          - Policy: arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
     - Name: desktop
       AllocationStrategy: lowest-price
       ComputeResources:
@@ -96,8 +139,13 @@ Scheduling:
           MaxCount: 10
       Networking:
         SubnetIds:
-          - $SUBNET_1
-          - $SUBNET_2
+EOF
+for subnet in "${subnets[@]}"; do
+cat << EOF >> $PCLUSTER_FILENAME
+          - $subnet
+EOF
+done
+cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
       ComputeSettings:
@@ -113,9 +161,22 @@ Scheduling:
             - $STACK_NAME
       Iam:
         AdditionalIamPolicies:
-          - Policy: >-
-              $COMPUTE_POLICY
-
+          - Policy: $COMPUTE_POLICY
+          - Policy: arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
+LoginNodes:
+  Pools:
+    - Name: login
+      Count: 1
+      InstanceType: c5.large
+      Networking:
+        SubnetIds: 
+          - ${subnets[0]}
+      Iam:
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+          - Policy: arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - Policy: arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
+          - Policy: arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess              
 Region: $REGION
 Image:
   Os: alinux2

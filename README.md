@@ -20,11 +20,25 @@ The primary components of the solution are:
 
 ## Prerequisites
 
-This solution was tested with PCluster version 3.9.0 
-
+This solution was tested with PCluster version 3.10.1 
 
 ## Deployment 🚀
-Download the cloudformation/openondemand.yml template, and use that to create a cloudformation stack in your AWS account and correct region.  
+
+### All-in-one Deployment
+
+All in one deployment including **infrastructure** and **Open OnDemand**)
+
+1. Run [deploy-assets.sh](deploy-assets.sh) to deploy the CloudFormation assets to an S3 bucket
+2. Deploy [ood-full.yml](assets/cloudformation/ood-full.yml) supplying the S3 bucket from step 1 as `DeploymentAssetBucketName`
+
+### Individual Component Deployment
+
+**Deploy Stacks individually:**
+
+1. Deploy the Infrastructure: [![Launch](images/launch-stack.svg)]("./cloudformation/infra.yml")
+2. Deploy Open OnDemand: [![Launch](images/launch-stack.svg)]("./cloudformation/ood.yml")
+
+### Post Deployment Steps
 
 Once deployed, you should be able to navigate to the URL you set up as a CloudFormation parameter and log into your Open OnDemand portal. You can use the username `Admin` and retrieve the default password from Secrets Manager. The correct secret can be identified in the output of the Open OnDemand CloudFormation template via the entry with the key `ADAdministratorSecretArn`.
 

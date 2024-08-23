@@ -4,7 +4,6 @@
 # It iterates over the cluster configurations and generates a SSH configuration
 # file for each cluster. 
 
-
 set -euo pipefail
 
 # Iterate over the cluster configurations and generate a SSH configuration
