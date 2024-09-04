@@ -8,14 +8,16 @@
 set -euo pipefail
 
 # Iterate over the cluster configurations and generate a SSH configuration
-for cluster_config in $(ls -1 /etc/ood/config/clusters.d/*.yml); do
+CLUSTER_COUNT=0
+while IFS= read -r -d '' cluster_config; do
+  CLUSTER_COUNT=$((CLUSTER_COUNT+1))
   cluster_name=$(basename $cluster_config .yml)
 
   # Get the cluster host from the configuration file
   cluster_host=$(yq -r '.v2.login.host' $cluster_config)
   
   # Generate SSH configuration
-  echo "[-] Generating SSH configuration for $cluster_name..."
+  echo "[-] Generating Open OnDemand SSH and Desktop configurations for '$cluster_name'"
   cat << EOF > /etc/ssh/ssh_config.d/ood_${cluster_name}.conf
 Host ${cluster_host}
   LogLevel Error
@@ -35,6 +37,7 @@ attributes:
   bc_queue: "desktop"
   account: "enduser-research-account"
 EOF
-done
+done < <(find /etc/ood/config/clusters.d/ -iname "*.yml" -print0)
 
-echo "[+] SSH configuration generated successfully."
+echo "[-] Open OnDemand configurations completed"
+echo "[-] cluster configurations processed: $CLUSTER_COUNT"

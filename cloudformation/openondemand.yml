@@ -1485,6 +1485,9 @@ Outputs:
   PrivateSubnet1:
     Description: Private Subnet ID
     Value: !Ref PrivateSubnet1
+  PrivateSubnet2:
+    Description: Private Subnet ID
+    Value: !Ref PrivateSubnet2
   ClusterConfigBucket:
     Description: S3 Bucket where Cluster Configuration items are stored
     Value: !Ref ClusterConfigBucket

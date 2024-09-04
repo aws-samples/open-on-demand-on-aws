@@ -20,7 +20,8 @@ export DOMAIN_2=${4:-"local"}
 export OOD_STACK=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION )
 
 export AD_SECRET_ARN=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ADAdministratorSecretARN") | .OutputValue')
-export SUBNET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="PrivateSubnet1") | .OutputValue')
+export SUBNET_1=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="PrivateSubnet1") | .OutputValue')
+export SUBNET_2=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="PrivateSubnet2") | .OutputValue')
 export HEAD_SG=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeSecurityGroup") | .OutputValue')
 export HEAD_POLICY=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeIAMPolicyArn") | .OutputValue')
 export COMPUTE_SG=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeSecurityGroup") | .OutputValue')
@@ -33,7 +34,7 @@ cat << EOF > ../pcluster-config.yml
 HeadNode:
   InstanceType: c5.large
   Networking:
-    SubnetId: $SUBNET
+    SubnetId: $SUBNET_1
     AdditionalSecurityGroups:
       - $HEAD_SG
   LocalStorage:
@@ -66,7 +67,8 @@ Scheduling:
           MaxCount: 4
       Networking:
         SubnetIds:
-          - $SUBNET
+          - $SUBNET_1
+          - $SUBNET_2
         AdditionalSecurityGroups:
           - $COMPUTE_SG
       ComputeSettings:
@@ -94,7 +96,8 @@ Scheduling:
           MaxCount: 10
       Networking:
         SubnetIds:
-          - $SUBNET
+          - $SUBNET_1
+          - $SUBNET_2
         AdditionalSecurityGroups:
           - $COMPUTE_SG
       ComputeSettings:
@@ -112,6 +115,7 @@ Scheduling:
         AdditionalIamPolicies:
           - Policy: >-
               $COMPUTE_POLICY
+
 Region: $REGION
 Image:
   Os: alinux2
