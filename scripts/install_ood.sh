@@ -5,6 +5,10 @@
 dnf install python3-pip httpd -y -q
 systemctl restart httpd
 
+# Install yq
+wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq &&\
+chmod +x /usr/bin/yq
+
 wget -O /tmp/ondemand-release-web-3.1-1.amzn2023.noarch.rpm https://yum.osc.edu/ondemand/3.1/ondemand-release-web-3.1-1.amzn2023.noarch.rpm
 dnf install /tmp/ondemand-release-web-3.1-1.amzn2023.noarch.rpm -yq
 dnf update -yq

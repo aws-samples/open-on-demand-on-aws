@@ -171,6 +171,8 @@ LoginNodes:
       Networking:
         SubnetIds: 
           - ${subnets[0]}
+        AdditionalSecurityGroups:
+          - $COMPUTE_SG
       Iam:
         AdditionalIamPolicies:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
@@ -182,9 +184,10 @@ Image:
   Os: alinux2
 DirectoryService:
   DomainName: $DOMAIN_1.$DOMAIN_2
-  DomainAddr: $LDAP_ENDPOINT
+  DomainAddr: ldap://$LDAP_ENDPOINT
   PasswordSecretArn: $AD_SECRET_ARN
   DomainReadOnlyUser: cn=Admin,ou=Users,ou=$DOMAIN_1,dc=$DOMAIN_1,dc=$DOMAIN_2
   AdditionalSssdConfigs:
     override_homedir: /shared/home/%u
+    ldap_auth_disable_tls_never_use_in_production: true
 EOF

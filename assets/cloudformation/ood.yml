@@ -102,7 +102,7 @@ Parameters:
     Type: String
   SlurmVersion:
     Description: Verion of slurm to install
-    Default: 23.11.4
+    Default: 23.11.7
     Type: String
 
 Resources:
@@ -592,7 +592,7 @@ Resources:
               command: !Sub |
                 . /etc/ood-install/set_variables.sh
                 ./install_ood.sh
-                aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/
+                aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/ --exact-timestamps
                 ./configure_cluster_for_ood.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
     Properties:
@@ -857,7 +857,7 @@ Resources:
           Input: !Sub |
            {
             "commands": [
-              "aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/",
+              "aws s3 sync s3://${ClusterConfigBucket}/clusters /etc/ood/config/clusters.d/ --exact-timestamps",
               "/etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_cluster_for_ood.sh"
             ]
            }
@@ -873,11 +873,11 @@ Resources:
       Description: Remove config files from OOD instance when pcluster removes a stack
       State: "ENABLED"
       EventPattern:
-        source:
-          - "aws.cloudformation"
         detail:
           eventName:
             - "DeleteStack"
+          eventSource:
+            - "cloudformation.amazonaws.com"
       Targets:
         - Id: RunShell
           Arn: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
@@ -888,8 +888,11 @@ Resources:
             InputTemplate: !Sub |
               {
                 "commands": [
-                    "IFS='/ ' read -r -a array <<< '<stackName>'",
-                    "stackName=${!array[1]}",
+                    "stackName=<stackName>",
+                    "if [[ $stackName == *:cloudformation:* ]]; then",
+                    " IFS='/ ' read -r -a array <<< $stackName",
+                    " stackName=${!array[1]}",
+                    "fi",
                     "tags=$(aws cloudformation describe-stacks --stack-name $stackName --region ${AWS::Region} --query \"Stacks[0].Tags[?Key=='parallelcluster:version']\" --output text)",
                     "if [ ! -z \"$tags\" ]; then",
                     " aws s3 rm s3://${ClusterConfigBucket}/clusters/$stackName.yml",
