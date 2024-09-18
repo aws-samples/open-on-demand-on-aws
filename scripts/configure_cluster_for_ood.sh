@@ -10,7 +10,7 @@ set -euo pipefail
 # Iterate over the cluster configurations and generate a SSH configuration
 CLUSTER_COUNT=0
 while IFS= read -r -d '' cluster_config; do
-  CLUSTER_COUNT=$((CLUSTER_COUNT+1))
+  ((CLUSTER_COUNT+=1))
   cluster_name=$(basename $cluster_config .yml)
 
   # Get the cluster host from the configuration file

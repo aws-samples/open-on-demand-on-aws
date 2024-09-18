@@ -20,11 +20,27 @@ The primary components of the solution are:
 
 ## Prerequisites
 
-This solution was tested with PCluster version 3.9.0 
-
+This solution was tested with PCluster version 3.10.1 
 
 ## Deployment 🚀
-Download the cloudformation/openondemand.yml template, and use that to create a cloudformation stack in your AWS account and correct region.  
+
+### All-in-one Deployment
+
+All in one deployment including **infrastructure** and **Open OnDemand**
+
+1. Run [deploy-assets.sh](deploy-assets.sh) to deploy the CloudFormation assets to an S3 bucket in the respective AWS account
+2. Deploy all-in-one stack [![Launch](images/launch-stack.svg)]("assets/cloudformation/ood-full.yml")
+
+**Note**: `DeploymentAssetBucketName` is the output from step 1 (deploy assets)
+
+### Individual Component Deployment
+
+**Deploy Stacks individually:**
+
+1. Deploy Infrastructure (*Networking, and Managed Active Directory*): [![Launch](images/launch-stack.svg)]("assets//cloudformation/infra.yml")
+2. Deploy Open OnDemand: [![Launch](images/launch-stack.svg)]("assets/cloudformation/ood.yml")
+
+### Post Deployment Steps
 
 Once deployed, you should be able to navigate to the URL you set up as a CloudFormation parameter and log into your Open OnDemand portal. You can use the username `Admin` and retrieve the default password from Secrets Manager. The correct secret can be identified in the output of the Open OnDemand CloudFormation template via the entry with the key `ADAdministratorSecretArn`.
 
@@ -93,19 +109,18 @@ Add the **CustomSlurmSetting** `ExclusiveUser: "YES"` in the [SlurmQueues](https
 
 ### Integration with Parallel Cluster Login Node
 
-If [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are used in the ParallelCluster [configure_login_nodes.sh](scripts/configure_login_nodes.sh) can be used to configure the login node for Open OnDemand.
+When [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are used a **post-deployment** script is required to enable shell access in Open OnDemand.
+Follow the below steps to configure the Login Node post-deployment:
 
-**Usage**
 Replace the following values:
 - `<OOD_STACK_NAME>` - name of the Open OnDemand stack name found in CloudFormation
 - `<ClusterConfigBucket>` - 'ClusterConfigBucket' Output found in the Open OnDemand stack
 
-Run the following script on the login node
 ```bash
-S3_CONFIG_BUCKET=<ClusterConfigBucket> 
+S3_CONFIG_BUCKET=<ClusterConfigBucket>
 aws s3 cp s3://$S3_CONFIG_BUCKET/configure_login_nodes.sh .
 chmod +x configure_login_nodes.sh
-configure_login_nodes.sh <OOD_STACK_NAME>
+./configure_login_nodes.sh <OOD_STACK_NAME>
 ```
 
 ### Enabling Interactive Desktops
