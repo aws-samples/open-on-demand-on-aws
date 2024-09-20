@@ -29,7 +29,7 @@ This solution was tested with PCluster version 3.10.1
 All in one deployment including **infrastructure** and **Open OnDemand**
 
 1. Run [deploy-assets.sh](deploy-assets.sh) to deploy the CloudFormation assets to an S3 bucket in the respective AWS account
-2. Deploy all-in-one stack [![Launch](images/launch-stack.svg)](assets/cloudformation/ood_full.yml)
+2. Deploy all-in-one stack [ood_full.yml](assets/cloudformation/ood_full.yml)
 
 **Note**: `DeploymentAssetBucketName` is the output from step 1 (deploy assets)
 
@@ -37,8 +37,8 @@ All in one deployment including **infrastructure** and **Open OnDemand**
 
 **Deploy Stacks individually:**
 
-1. Deploy Infrastructure (*Networking, and Managed Active Directory*): [![Launch](images/launch-stack.svg)](assets//cloudformation/infra.yml)
-2. Deploy Open OnDemand: [![Launch](images/launch-stack.svg)](assets/cloudformation/ood.yml)
+1. Deploy Infrastructure (*Networking, and Managed Active Directory*): [infra.yml](assets/cloudformation/infra.yml)
+2. Deploy Open OnDemand: [ood.yml](assets/cloudformation/ood.yml)
 
 ### Post Deployment Steps
 
