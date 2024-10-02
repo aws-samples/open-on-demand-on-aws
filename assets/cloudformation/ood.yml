@@ -102,7 +102,7 @@ Parameters:
     Type: String
   SlurmVersion:
     Description: Verion of slurm to install
-    Default: 23.11.7
+    Default: 23.11.10
     Type: String
 
 Resources:
