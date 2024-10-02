@@ -173,6 +173,12 @@ LoginNodes:
           - ${subnets[0]}
         AdditionalSecurityGroups:
           - $COMPUTE_SG
+      CustomActions:
+        OnNodeConfigured:
+          Script: >-
+            s3://$BUCKET_NAME/configure_login_nodes.sh
+          Args:
+            - $STACK_NAME
       Iam:
         AdditionalIamPolicies:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
