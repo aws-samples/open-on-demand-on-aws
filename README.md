@@ -20,7 +20,7 @@ The primary components of the solution are:
 
 ## Prerequisites
 
-This solution was tested with PCluster version 3.10.1 
+This solution was tested with AWS ParallelCluster version [3.11.0](https://github.com/aws/aws-parallelcluster/releases/tag/v3.11.0)
 
 ## Deployment 🚀
 
@@ -64,6 +64,11 @@ In your Parallel Cluster config, you must set the following values:
     1. OnNodeConfigured
         1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
         1. Args: Open OnDemand CloudFormation stack name
+1. LoginNode:
+    1. OnNodeConfigured
+        1. Script: CloudFormation Output for the ClusterConfigBucket; in the format `s3://$ClusterConfigBucket/configure_login_nodes.sh`
+        1. Args: Open OnDemand CloudFormation stack name
+
 
 **Note:** A sample pcluster configuration can be created using [scripts/create_sample_pcluster_config.sh](scripts/create_sample_pcluster_config.sh)
 
@@ -105,22 +110,6 @@ Add the **CustomSlurmSetting** `ExclusiveUser: "YES"` in the [SlurmQueues](https
             Args:
             - Open OnDemand CloudFormation stack name
         - Script: s3://$ClusterConfigBucket/configure_pam_slurm_adopt.sh
-```
-
-### Integration with Parallel Cluster Login Node
-
-When [ParallelCluster Login Nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/login-nodes-v3.html) are used a **post-deployment** script is required to enable shell access in Open OnDemand.
-Follow the below steps to configure the Login Node post-deployment:
-
-Replace the following values:
-- `<OOD_STACK_NAME>` - name of the Open OnDemand stack name found in CloudFormation
-- `<ClusterConfigBucket>` - 'ClusterConfigBucket' Output found in the Open OnDemand stack
-
-```bash
-S3_CONFIG_BUCKET=<ClusterConfigBucket>
-aws s3 cp s3://$S3_CONFIG_BUCKET/configure_login_nodes.sh .
-chmod +x configure_login_nodes.sh
-./configure_login_nodes.sh <OOD_STACK_NAME>
 ```
 
 ### Enabling Interactive Desktops
