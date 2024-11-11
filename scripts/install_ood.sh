@@ -120,7 +120,7 @@ if  id "\$1" &> /dev/null; then
     sudo cp /etc/skel/.bash_profile /shared/home/\$1
     sudo cp /etc/skel/.bashrc /shared/home/\$1
   #  echo "\$1 $(id -u $1)" >> /shared/userlistfile
-    sudo chown -R \$1:"Domain Users" /shared/home/$1 >> /var/log/add_user.log
+    sudo chown -R \$1:"Domain Users" /shared/home/\$1 >> /var/log/add_user.log
     sudo su \$1 -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -P ""'
     sudo su \$1 -c 'cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys'
     sudo chmod 600 /shared/home/\$1/.ssh/*
