@@ -11,7 +11,6 @@ Metadata:
       - Label:
           default: Route53
         Parameters:
-          - HostedZoneName
           - HostedZoneId
       - Label:
           default: Active Directory
@@ -28,8 +27,6 @@ Metadata:
         default: Portal Allowed IP CIDR
       WebsiteDomainName:
         default: Website Domain Name
-      HostedZoneName:
-        default: Hosted Zone Name
       HostedZoneId:
         default: Hosted Zone Id
 Parameters:
@@ -48,10 +45,6 @@ Parameters:
   WebsiteDomainName:
     Description: Domain name for world facing website
     Type: String
-  HostedZoneName:
-    Description: Hosted zone for the domain
-    Type: String
-    AllowedPattern: '[A-Za-z\.]*\.$'
   HostedZoneId:
     Description: Hosted Zone Id for Route53 Domain
     Type: String
@@ -91,7 +84,6 @@ Resources:
         PrivateSubnets: !GetAtt [ OODInfra, Outputs.PrivateSubnets ]
         DomainName: !GetAtt [ OODInfra, Outputs.DomainName ]
         TopLevelDomain: !GetAtt [ OODInfra, Outputs.TopLevelDomain ]
-        HostedZoneName: !Ref HostedZoneName
         HostedZoneId: !Ref HostedZoneId
         PortalAllowedIPCIDR: !Ref PortalAllowedIPCIDR
         WebsiteDomainName: !Ref WebsiteDomainName
