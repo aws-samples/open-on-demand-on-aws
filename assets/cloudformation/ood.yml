@@ -27,10 +27,16 @@ Metadata:
           - ADAdministratorSecret
           - TopLevelDomain
           - DomainName
+          - LDAPNLBEndPoint
       - Label: 
           default: Storage
         Parameters:
           - LoadBalancerLogBucket
+      - Label:
+          default: Slurm Accounting Database
+        Parameters:
+          - SlurmAccountingDBSecret
+          - SlurmAccountingDBSecurityGroup
       - Label:
           default: Open OnDemand
         Parameters:
@@ -62,7 +68,7 @@ Parameters:
   HostedZoneId:
     Description: Hosted Zone Id for Route53 Domain
     Type: String
-    AllowedPattern: '[A-Za-z\.]*$'
+    AllowedPattern: '[a-zA-Z0-9]+'
   PortalAllowedIPCIDR:
     Description: IP CIDR for access to the Portal
     Default: 0.0.0.0/0
@@ -90,6 +96,13 @@ Parameters:
     Description: S3 Bucket to store LB logs
     Type: String
     AllowedPattern: '[a-z0-9.-]*'
+  SlurmAccountingDBSecret:
+    Description: Slurm Accounting DB Secret ARN
+    Type: String
+    AllowedPattern: 'arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[a-zA-Z0-9/-]*'
+  SlurmAccountingDBSecurityGroup:
+    Description: Slurm Accounting DB Security Group
+    Type: AWS::EC2::SecurityGroup::Id
   Branch:
     Description: Branch of the code to deploy. Only use this when testing changes to the solution
     Default: main
@@ -364,7 +377,7 @@ Resources:
             Resource:
               - !Ref ADAdministratorSecret
               - !Ref OpenOnDemandSecrets
-              - !Ref AuroraMasterSecret
+              - !Ref SlurmAccountingDBSecret
           - Effect: Allow
             Action: 
               - secretsmanager:GetSecretValue
@@ -450,33 +463,6 @@ Resources:
         - Key: idle_timeout.timeout_seconds # Required to address issue with OOD SSH timeout
           Value: 600          
 
-  AuroraDBCluster:
-    Type: AWS::RDS::DBCluster
-    DeletionPolicy: Snapshot
-    UpdateReplacePolicy: Snapshot
-    Properties:
-      BacktrackWindow: 86400 # Sets backtrack to 24 hours
-      BackupRetentionPeriod: 7 # Ensures daily snapshots are taken
-      Engine: aurora-mysql
-      EngineMode: global
-      DatabaseName: slurmaccounting
-      MasterUsername: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:username}}'
-      MasterUserPassword: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:password}}'
-      DBSubnetGroupName: !Ref DBSubnetGroup
-      VpcSecurityGroupIds:
-        - !Ref DatabaseSecurityGroup
-      StorageEncrypted: true
-
-  AuroraDBPrimaryInstance:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBInstanceClass: db.t3.medium
-      DBClusterIdentifier: !Ref AuroraDBCluster
-      Engine: aurora-mysql
-      AutoMinorVersionUpgrade: true
-      DBSubnetGroupName: !Ref DBSubnetGroup
-      PubliclyAccessible: false
-
   # Add a new secrets manager entry
   MungeKeySecret:
     Type: AWS::SecretsManager::Secret
@@ -525,7 +511,7 @@ Resources:
                 export AWS_REGION=${AWS::Region}
                 export DOMAIN_NAME=${DomainName}
                 export TOP_LEVEL_DOMAIN=${TopLevelDomain}
-                export RDS_SECRET_ID=${AuroraMasterSecret}
+                export RDS_SECRET_ID=${SlurmAccountingDBSecret}
                 export ALB_DNS_NAME=${ALB.DNSName}
                 export WEBSITE_DOMAIN=${WebsiteDomainName}
                 export LDAP_NLB=${LDAPNLBEndPoint}
@@ -913,44 +899,11 @@ Resources:
         HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
       Type: A
 
-  DBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: DB Subnet Group
-      SubnetIds: !Ref PrivateSubnets
-
-  AuroraMasterSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: !Sub ${AWS::StackName}-rds-slurm-accounting-secret
-      GenerateSecretString:
-        SecretStringTemplate: !Join ['', ['{"username": "admin"}']]
-        GenerateStringKey: "password"
-        ExcludeCharacters: '"@/\#'
-        PasswordLength: 16
-
-  SecretRDSInstanceAttachment:
-    Type: AWS::SecretsManager::SecretTargetAttachment
-    Properties:
-      SecretId: !Ref AuroraMasterSecret
-      TargetId: !Ref AuroraDBCluster
-      TargetType: AWS::RDS::DBCluster
-
-  DatabaseSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for DB
-      VpcId: !Ref VPC
-      SecurityGroupEgress:
-        - Description: Remove default rule for egress
-          CidrIp: 127.0.0.1/32
-          IpProtocol: "-1"
-
   DatabaseSecurityGroupIngressOOD:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       IpProtocol: tcp
-      GroupId: !Ref DatabaseSecurityGroup
+      GroupId: !Ref SlurmAccountingDBSecurityGroup
       SourceSecurityGroupId: !Ref PortalSecurityGroup
       FromPort: 3306
       ToPort: 3306
@@ -960,7 +913,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       IpProtocol: tcp
-      GroupId: !Ref DatabaseSecurityGroup
+      GroupId: !Ref SlurmAccountingDBSecurityGroup
       SourceSecurityGroupId: !Ref HeadNodeSecurityGroup
       FromPort: 3306
       ToPort: 3306
@@ -974,7 +927,7 @@ Resources:
       ToPort: 3306
       Description: Allows outbound to DB
       GroupId: !GetAtt HeadNodeSecurityGroup.GroupId
-      DestinationSecurityGroupId: !GetAtt DatabaseSecurityGroup.GroupId
+      DestinationSecurityGroupId: !Ref SlurmAccountingDBSecurityGroup
 
   PortalDBEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -984,7 +937,7 @@ Resources:
       ToPort: 3306
       Description: Allows outbound to DB
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      DestinationSecurityGroupId: !GetAtt DatabaseSecurityGroup.GroupId
+      DestinationSecurityGroupId: !Ref SlurmAccountingDBSecurityGroup
 
   HeadNodeParallelClusterIAMPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -998,7 +951,7 @@ Resources:
               - secretsmanager:DescribeSecret
             Resource:
               - !Ref OpenOnDemandSecrets
-              - !Ref AuroraMasterSecret
+              - !Ref SlurmAccountingDBSecret
               - !Ref ADAdministratorSecret
               - !Ref MungeKeySecret
           - Effect: Allow
@@ -1070,9 +1023,18 @@ Outputs:
   SecretId:
     Description: Open OnDemand Secret ID
     Value: !Ref OpenOnDemandSecrets
-  DBSecretId:
+  SlurmAccountingDBSecret:
     Description: DB Secret ARN
-    Value: !Ref AuroraMasterSecret
+    Value: !Ref SlurmAccountingDBSecret
+  LDAPNLBEndPoint:
+    Description: LDAP NLB End Point
+    Value: !Ref LDAPNLBEndPoint
+  PrivateSubnets:
+    Description: Private Subnets
+    Value: !Join [",", !Ref PrivateSubnets]
+  ADAdministratorSecretARN:
+    Description: DB Secret ARN
+    Value: !Ref SlurmAccountingDBSecret
   MungeKeySecretId:
     Description: Munge Key Secret ARN
     Value: !Ref MungeKeySecret

@@ -11,9 +11,8 @@ INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v -s http://169.254.16
 OOD_STACK_NAME=$1
 OOD_STACK=$(aws cloudformation describe-stacks --stack-name $OOD_STACK_NAME --region $REGION )
 
-STACK_NAME=$(aws ec2 describe-instances --instance-id=$INSTANCE_ID --region $REGION --query 'Reservations[].Instances[].Tags[?Key==`parallelcluster:cluster-name`].Value' --output text)
-OOD_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="SecretId") | .OutputValue')
-RDS_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="DBSecretId") | .OutputValue')
+CLUSTER_NAME=$(aws ec2 describe-instances --instance-id=$INSTANCE_ID --region $REGION --query 'Reservations[].Instances[].Tags[?Key==`parallelcluster:cluster-name`].Value' --output text)
+RDS_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="SlurmAccountingDBSecret") | .OutputValue')
 EFS_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
 S3_CONFIG_BUCKET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
 
@@ -45,20 +44,20 @@ systemctl restart sssd
 
 
 export SLURM_VERSION=$(. /etc/profile && sinfo --version | cut -d' ' -f 2)
-sed -i "s/ClusterName=.*$/ClusterName=$STACK_NAME/" /opt/slurm/etc/slurm.conf
+sed -i "s/ClusterName=.*$/ClusterName=$CLUSTER_NAME/" /opt/slurm/etc/slurm.conf
 
 mkdir -p /etc/ood/config/clusters.d
-cat << EOF > /etc/ood/config/clusters.d/$STACK_NAME.yml
+cat << EOF > /etc/ood/config/clusters.d/$CLUSTER_NAME.yml
 ---
 v2:
   metadata:
-    title: "$STACK_NAME"
+    title: "$CLUSTER_NAME"
     hidden: false
   login:
     host: "$(hostname -s)"
   job:
     adapter: "slurm"
-    cluster: "$STACK_NAME"
+    cluster: "$CLUSTER_NAME"
     bin: "/bin"
     bin_overrides:
       sbatch: "/etc/ood/config/bin_overrides.py"
@@ -140,12 +139,12 @@ systemctl enable slurmdbd
 systemctl start slurmdbd
 
 # Add cluster to slurm accounting
-sacctmgr --quiet add cluster $STACK_NAME
+sacctmgr --quiet add cluster $CLUSTER_NAME
 systemctl restart slurmctld
 systemctl restart slurmdbd
 systemctl restart slurmctld # TODO: Investigate why this fixes clusters not registered issues
 
-aws s3 cp /etc/ood/config/clusters.d/$STACK_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$STACK_NAME.yml
+aws s3 cp /etc/ood/config/clusters.d/$CLUSTER_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$CLUSTER_NAME.yml
 
 #
 cat >> /etc/bashrc << 'EOF'

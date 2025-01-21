@@ -1,0 +1,96 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Slurm Accounting Database
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Networking
+        Parameters:
+          - VPC
+          - PrivateSubnets
+Parameters:
+  VPC:
+    Description: VPC to deploy the portal
+    Type: AWS::EC2::VPC::Id
+    ConstraintDescription: must be a valid VPC Id
+  PrivateSubnets:
+    Description: Private subnets
+    Type: List<AWS::EC2::Subnet::Id>
+
+Resources:
+  AuroraMasterSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}-rds-slurm-accounting-secret
+      GenerateSecretString:
+        SecretStringTemplate: !Join ['', ['{"username": "admin"}']]
+        GenerateStringKey: "password"
+        ExcludeCharacters: '"@/\#'
+        PasswordLength: 16
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DB Subnet Group
+      SubnetIds: !Ref PrivateSubnets
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for DB
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - Description: Remove default rule for egress
+          CidrIp: 127.0.0.1/32
+          IpProtocol: "-1"
+
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      BacktrackWindow: 86400 # Sets backtrack to 24 hours
+      BackupRetentionPeriod: 7 # Ensures daily snapshots are taken
+      Engine: aurora-mysql
+      EngineMode: global
+      DatabaseName: slurmaccounting
+      MasterUsername: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      StorageEncrypted: true
+
+  AuroraDBPrimaryInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.medium
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      Engine: aurora-mysql
+      AutoMinorVersionUpgrade: true
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      PubliclyAccessible: false
+
+  SecretRDSInstanceAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref AuroraMasterSecret
+      TargetId: !Ref AuroraDBCluster
+      TargetType: AWS::RDS::DBCluster
+
+Outputs:
+  DBSecretId:
+    Description: Slurm Accounting Secret ARN
+    Value: !Ref AuroraMasterSecret
+  DBSecurityGroup:
+    Description: Slurm Accounting DB Security Group
+    Value: !Ref DatabaseSecurityGroup
+  DBEndpointAddress:
+    Description: DB Endpoint Address
+    Value: !GetAtt AuroraDBCluster.Endpoint.Address
+  DBEndpointPort:
+    Description: DB Endpoint Port
+    Value: !GetAtt AuroraDBCluster.Endpoint.Port

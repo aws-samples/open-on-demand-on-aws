@@ -75,6 +75,13 @@ Resources:
         TopLevelDomain: !Ref TopLevelDomain
       TemplateURL: !Sub https://${DeploymentAssetBucketName}.s3.amazonaws.com/assets/cloudformation/infra.yml
 
+  OODSlurmAccountingDB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        VPC: !GetAtt [ OODInfra, Outputs.VPCId ]
+        PrivateSubnets: !GetAtt [ OODInfra, Outputs.PrivateSubnets ]
+
   OOD:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -87,6 +94,8 @@ Resources:
         HostedZoneId: !Ref HostedZoneId
         PortalAllowedIPCIDR: !Ref PortalAllowedIPCIDR
         WebsiteDomainName: !Ref WebsiteDomainName
+        SlurmAccountingDBSecret: !Ref [ OODSlurmAccountingDB, Outputs.DBSecretId ]
+        SlurmAccountingDBSecurityGroup: !Ref [ OODSlurmAccountingDB, Outputs.DBSecurityGroup ]
         ADAdministratorSecret: !GetAtt [ OODInfra, Outputs.ADAdministratorSecretARN ]
         LDAPNLBEndPoint: !GetAtt [ OODInfra, Outputs.LDAPNLBEndPoint ]
         LoadBalancerLogBucket: !GetAtt [ OODInfra, Outputs.LoadBalancerLogBucket ]
@@ -107,7 +116,7 @@ Outputs:
   SecretId:
     Description: Open OnDemand Secret ID
     Value: !GetAtt OOD.Outputs.SecretId
-  DBSecretId:
+  SlurmAccountingDBSecret:
     Description: DB Secret ARN
     Value: !GetAtt OOD.Outputs.DBSecretId
   MungeKeySecretId:

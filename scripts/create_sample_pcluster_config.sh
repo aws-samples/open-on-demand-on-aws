@@ -107,10 +107,7 @@ cat << EOF >> $PCLUSTER_FILENAME
           - $subnet
 EOF
 done
-# for subnet in "${subnets[@]}"; do
-#   cat << GENERAL >> ../pcluster-config.yml
-#           TEST
-# GENERAL
+
 cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
@@ -145,6 +142,7 @@ cat << EOF >> $PCLUSTER_FILENAME
           - $subnet
 EOF
 done
+
 cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
