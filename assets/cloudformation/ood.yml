@@ -1034,7 +1034,7 @@ Outputs:
     Value: !Join [",", !Ref PrivateSubnets]
   ADAdministratorSecretARN:
     Description: DB Secret ARN
-    Value: !Ref SlurmAccountingDBSecret
+    Value: !Ref ADAdministratorSecret
   MungeKeySecretId:
     Description: Munge Key Secret ARN
     Value: !Ref MungeKeySecret
