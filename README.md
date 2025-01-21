@@ -38,7 +38,8 @@ All in one deployment including **infrastructure** and **Open OnDemand**
 **Deploy Stacks individually:**
 
 1. Deploy Infrastructure (*Networking, and Managed Active Directory*): [infra.yml](assets/cloudformation/infra.yml)
-2. Deploy Open OnDemand: [ood.yml](assets/cloudformation/ood.yml)
+2. Deploy Slurm Accounting Database: [slurm_accounting_db.yml](assets/cloudformation/slurm_accounting_db.yml)
+3. Deploy Open OnDemand: [ood.yml](assets/cloudformation/ood.yml)
 
 ### Post Deployment Steps
 

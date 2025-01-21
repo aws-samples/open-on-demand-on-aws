@@ -8,7 +8,6 @@ Description: |-
     - Private and Public subnets
     - NAT Gateway
     - Active Directory
-    - File System
     - S3 Gateway
 Metadata:
   AWS::CloudFormation::Interface:
@@ -377,7 +376,7 @@ Resources:
       Description: !Sub AD Secrets for Open On Demand Stack ${AWS::StackName}
       GenerateSecretString:
         PasswordLength: 12
-        ExcludeCharacters: '"@/\''$`,;!%<>#'
+        ExcludeCharacters: '"@/\''$`,;!%<>#&'
 
   ActiveDirectory:
     Type: AWS::DirectoryService::MicrosoftAD
