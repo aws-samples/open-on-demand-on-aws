@@ -1,0 +1,18 @@
+# .pre-commit-config.yaml
+repos:
+- repo: https://github.com/aws-cloudformation/cfn-lint
+  rev: v1.24.0  # Use the latest version
+  hooks:
+    - id: cfn-lint
+      files: assets/cloudformation/\.(yaml|yml|json|template)$
+      # Optionally add specific arguments
+      args: [--ignore-checks, W3002]
+
+- repo: local
+  hooks:
+    - id: cfn_nag
+      name: cfn_nag
+      description:  Looks for patterns in CloudFormation templates that may indicate insecure infrastructure.
+      entry: cfn_nag_scan --input-path
+      language: ruby
+      files: assets/cloudformation/\.(yaml|yml|json|template)$
