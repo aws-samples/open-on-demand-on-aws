@@ -118,7 +118,7 @@ Outputs:
     Value: !GetAtt OOD.Outputs.SecretId
   SlurmAccountingDBSecret:
     Description: DB Secret ARN
-    Value: !GetAtt OOD.Outputs.DBSecretId
+    Value: !GetAtt OODSlurmAccountingDB.Outputs.DBSecretId
   MungeKeySecretId:
     Description: Munge Key Secret ARN
     Value: !GetAtt OOD.Outputs.MungeKeySecretId
