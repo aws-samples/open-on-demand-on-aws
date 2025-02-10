@@ -81,6 +81,7 @@ Resources:
       Parameters:
         VPC: !GetAtt [ OODInfra, Outputs.VPCId ]
         PrivateSubnets: !GetAtt [ OODInfra, Outputs.PrivateSubnets ]
+      TemplateURL: !Sub https://${DeploymentAssetBucketName}.s3.amazonaws.com/assets/cloudformation/slurm_accounting_db.yml
 
   OOD:
     Type: AWS::CloudFormation::Stack
@@ -94,8 +95,8 @@ Resources:
         HostedZoneId: !Ref HostedZoneId
         PortalAllowedIPCIDR: !Ref PortalAllowedIPCIDR
         WebsiteDomainName: !Ref WebsiteDomainName
-        SlurmAccountingDBSecret: !Ref [ OODSlurmAccountingDB, Outputs.DBSecretId ]
-        SlurmAccountingDBSecurityGroup: !Ref [ OODSlurmAccountingDB, Outputs.DBSecurityGroup ]
+        SlurmAccountingDBSecret: !GetAtt [ OODSlurmAccountingDB, Outputs.DBSecretId ]
+        SlurmAccountingDBSecurityGroup: !GetAtt [ OODSlurmAccountingDB, Outputs.DBSecurityGroup ]
         ADAdministratorSecret: !GetAtt [ OODInfra, Outputs.ADAdministratorSecretARN ]
         LDAPNLBEndPoint: !GetAtt [ OODInfra, Outputs.LDAPNLBEndPoint ]
         LoadBalancerLogBucket: !GetAtt [ OODInfra, Outputs.LoadBalancerLogBucket ]
