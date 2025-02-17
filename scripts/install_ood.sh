@@ -9,8 +9,8 @@ systemctl restart httpd
 wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq &&\
 chmod +x /usr/bin/yq
 
-wget -O /tmp/ondemand-release-web-3.1-1.amzn2023.noarch.rpm https://yum.osc.edu/ondemand/3.1/ondemand-release-web-3.1-1.amzn2023.noarch.rpm
-dnf install /tmp/ondemand-release-web-3.1-1.amzn2023.noarch.rpm -yq
+wget -O /tmp/ondemand-release-web-4.0-1.amzn2023.noarch.rpm https://yum.osc.edu/ondemand/4.0/ondemand-release-web-4.0-1.amzn2023.noarch.rpm
+dnf install /tmp/ondemand-release-web-4.0-1.amzn2023.noarch.rpm -yq
 dnf update -yq
 dnf install ondemand ondemand-dex krb5-workstation samba -yq
 
