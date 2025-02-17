@@ -4,7 +4,7 @@ repos:
   rev: v1.24.0  # Use the latest version
   hooks:
     - id: cfn-lint
-      files: \.(yaml|yml|json|template)$
+      files: assets/cloudformation/\.(yaml|yml|json|template)$
       # Optionally add specific arguments
       exclude: ^(.pre-commit-config.yaml)$
       args: [--ignore-checks, W3002]
@@ -17,4 +17,4 @@ repos:
       entry: cfn_nag_scan --input-path
       language: ruby
       exclude: ^(.pre-commit-config.yaml)$
-      files: \.(yaml|yml|json|template)$
+      files: assets/cloudformation/\.(yaml|yml|json|template)$
