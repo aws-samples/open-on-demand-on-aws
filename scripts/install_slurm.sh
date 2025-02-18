@@ -92,42 +92,42 @@ if [ ! -f /etc/slurm/slurmdbd.conf ]; then
     echo "[-] slurmdbd.conf not found, copying example"
 
     cat << EOF > /etc/slurm/slurmdbd.conf
-    ArchiveEvents=yes
-    ArchiveJobs=yes
-    ArchiveResvs=yes
-    ArchiveSteps=no
-    ArchiveSuspend=no
-    ArchiveTXN=no
-    ArchiveUsage=no
-    AuthType=auth/munge
-    DbdHost=$(hostname -s)
-    DbdPort=6819
-    DebugLevel=info
-    PurgeEventAfter=1month
-    PurgeJobAfter=12month
-    PurgeResvAfter=1month
-    PurgeStepAfter=1month
-    PurgeSuspendAfter=1month
-    PurgeTXNAfter=12month
-    PurgeUsageAfter=24month
-    SlurmUser=slurm
-    LogFile=/var/log/slurm/slurmdbd.log
-    PidFile=/var/run/slurmdbd.pid
-    StorageType=accounting_storage/mysql
-    StorageUser=$RDS_USER
-    StoragePass=$RDS_PASSWORD
-    StorageHost=$RDS_ENDPOINT # Endpoint from RDS
-    StoragePort=$RDS_PORT  # Port from RDS
-    StorageLoc=$RDS_DBNAME # DBName from RDS
+ArchiveEvents=yes
+ArchiveJobs=yes
+ArchiveResvs=yes
+ArchiveSteps=no
+ArchiveSuspend=no
+ArchiveTXN=no
+ArchiveUsage=no
+AuthType=auth/munge
+DbdHost=$(hostname -s)
+DbdPort=6819
+DebugLevel=info
+PurgeEventAfter=1month
+PurgeJobAfter=12month
+PurgeResvAfter=1month
+PurgeStepAfter=1month
+PurgeSuspendAfter=1month
+PurgeTXNAfter=12month
+PurgeUsageAfter=24month
+SlurmUser=slurm
+LogFile=/var/log/slurm/slurmdbd.log
+PidFile=/var/run/slurmdbd.pid
+StorageType=accounting_storage/mysql
+StorageUser=$RDS_USER
+StoragePass=$RDS_PASSWORD
+StorageHost=$RDS_ENDPOINT # Endpoint from RDS
+StoragePort=$RDS_PORT  # Port from RDS
+StorageLoc=$RDS_DBNAME # DBName from RDS
 EOF
     # Change AccountingStorageType from 'none' to 'slurmdbd'
     sed -i "s/AccountingStorageType=accounting_storage\/none/AccountingStorageType=accounting_storage\/slurmdbd/" /etc/slurm/slurm.conf
 
     cat << EOF >> /etc/slurm/slurm.conf
-    # ACCOUNTING
-    AccountingStorageHost=$(hostname -s)
-    AccountingStorageUser=$RDS_USER
-    AccountingStoragePort=6819
+# ACCOUNTING
+AccountingStorageHost=$(hostname -s)
+AccountingStorageUser=$RDS_USER
+AccountingStoragePort=6819
 EOF
 fi
 
