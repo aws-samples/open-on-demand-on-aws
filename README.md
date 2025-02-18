@@ -130,12 +130,27 @@ This requires you to have a compute queue with `pcluster_worker_node_desktop.sh`
 
 ## Slurm Configuration Management
 
-Slurm configuration can be maintained outside of the Open OnDemand deployment.  The `ClusterConfigBucket` S3 bucket (_found in CloudFormation Outputs_) will now store slurm configuration(s) inside the `/slurm` prefix.  Any files in `/etc/slurm` directory can be added to this prefix and will be automatically deployed to the Open OnDemand server, and applicable slurm service(s) will be restarted.
+Slurm configuration can be maintained outside of the Open OnDemand deployment.  
+
+The `ClusterConfigBucket` S3 bucket (_found in CloudFormation Outputs_) can contain slurm configuration(s) inside the `/slurm` prefix.  Any files in `/etc/slurm` directory can be added to this prefix and will be automatically deployed to the Open OnDemand server by way of an EventBridge rule.  
 
 The following configurations are stored by default:
 
 - [slurm.conf](https://slurm.schedmd.com/slurm.conf.html)
 - [slurmdbd.conf](https://slurm.schedmd.com/slurmdbd.conf.html)
+
+### How to update slurm configuration
+
+To update the slurm configuration on the Open OnDemand server copy any configuration file(s) to the `ClusterConfigBucket` s3 bucket.  
+
+e.g. Pushing a `slurm.conf` configuration update.  
+**Note:** Replace `OOD_STACK` with the name of your OOD CloudFormation stack.
+
+```bash
+OOD_STACK="<insert ood stack name here>"
+CLUSTER_CONFIG_BUCKET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
+aws s3 cp slurm.conf s3://$CLUSTER_CONFIG_BUCKET/slurm/
+```
 
 ## RHEL9 support
 
