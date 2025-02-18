@@ -128,6 +128,15 @@ nameserver 10.0.0.2
 
 This requires you to have a compute queue with `pcluster_worker_node_desktop.sh` as your `OnNodeConfigured` script.
 
+## Slurm Configuration Management
+
+Slurm configuration can be maintained outside of the Open OnDemand deployment.  The `ClusterConfigBucket` S3 bucket (_found in CloudFormation Outputs_) will now store slurm configuration(s) inside the `/slurm` prefix.  Any files in `/etc/slurm` directory can be added to this prefix and will be automatically deployed to the Open OnDemand server, and applicable slurm service(s) will be restarted.
+
+The following configurations are stored by default:
+
+- [slurm.conf](https://slurm.schedmd.com/slurm.conf.html)
+- [slurmdbd.conf](https://slurm.schedmd.com/slurmdbd.conf.html)
+
 ## RHEL9 support
 
 RHEL9 has been added as another deployment option.  To deploy use the [rhel9-support](https://github.com/aws-samples/open-on-demand-on-aws/tree/rhel9-support) branch for deployment.
