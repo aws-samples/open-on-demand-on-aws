@@ -908,7 +908,7 @@ Resources:
           Input: !Sub |
            {
             "commands": [
-              "aws s3 sync s3://${ClusterConfigBucket}/slurm /etc/slurm/"
+              "aws s3 sync s3://${ClusterConfigBucket}/slurm /etc/slurm/",
               "/etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_slurm.sh"
             ]
            }
