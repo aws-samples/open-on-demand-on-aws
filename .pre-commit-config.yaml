@@ -7,7 +7,6 @@ repos:
       files: assets/cloudformation/.*\.(yaml|yml|json|template)$
       # Optionally add specific arguments
       exclude: ^(.pre-commit-config.yaml)$
-      # args: [--ignore-checks, W3002]
 
 - repo: local
   hooks:
