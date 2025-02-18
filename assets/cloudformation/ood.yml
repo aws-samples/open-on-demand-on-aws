@@ -556,11 +556,6 @@ Resources:
                 . /etc/ood-install/set_variables.sh
                 ./install_slurm.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
-            3_configure_slurm_accounting:
-              command: |
-                . /etc/ood-install/set_variables.sh
-                ./configure_slurm_accounting.sh
-              cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
         spack:
           commands:
             install_spack:
@@ -883,6 +878,40 @@ Resources:
                     "fi"
                   ]
               }
+          RunCommandParameters:
+            RunCommandTargets:
+              - Key: tag:ood
+                Values:
+                  - !Sub webportal-${AWS::StackName}
+
+  SlurmConfigRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Copy slurm config files to OOD instance when an object is uploaded
+      State: "ENABLED"
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name: 
+              - !Ref ClusterConfigBucket
+          object:
+            key:
+              - wildcard: "slurm/*"
+      Targets:
+        - Id: RunShell
+          Arn: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+          RoleArn: !GetAtt EventBridgeRole.Arn
+          Input: !Sub |
+           {
+            "commands": [
+              "aws s3 sync s3://${ClusterConfigBucket}/slurm /etc/slurm/"
+              "/etc/ood-install/open-on-demand-on-aws-${Branch}/scripts/configure_slurm.sh"
+            ]
+           }
           RunCommandParameters:
             RunCommandTargets:
               - Key: tag:ood
