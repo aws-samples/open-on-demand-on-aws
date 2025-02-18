@@ -17,3 +17,12 @@ repos:
       language: ruby
       exclude: ^(.pre-commit-config.yaml)$
       files: assets/cloudformation/.*\.(yaml|yml|json|template)$
+
+-   repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+    -   id: shellcheck
+        files: scripts/.*\.(sh)$
+        args:
+          - --exclude=SC2086,SC2046,SC2155
+          - --severity=error
