@@ -90,7 +90,7 @@ node_uri: '/node'
 rnode_uri: '/rnode'
 EOF
 
-mkdir /etc/ood/config/ondemand.d
+mkdir -p /etc/ood/config/ondemand.d
 cat << EOF >> /etc/ood/config/ondemand.d/aws-branding.yml
 dashboard_title: 'Open OnDemand on AWS'
 brand_bg_color: '#ff7f0e'
