@@ -17,6 +17,16 @@ export DOMAIN_1=${3:-"hpclab"}
 export DOMAIN_2=${4:-"local"}
 PCLUSTER_FILENAME="pcluster-config.yml"
 
+# Generate help 
+if [ "$1" == "--help" ]; then
+  echo "Usage: $0 <stack-name> [region] [domain1] [domain2]"
+  echo "  stack-name: The name of the stack you deployed"
+  echo "  region: The region of the stack you deployed"
+  echo "  domain1: The first domain name to use for the cluster"
+  echo "  domain2: The second domain name to use for the cluster"
+  exit 0
+fi
+
 echo "[-] Checking if stack '$STACK_NAME' exists in region '$REGION'..."
 if ! aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION &>/dev/null ; then
     echo "Error: Failed to describe stack '$STACK_NAME' in region '$REGION'. Please check your stack name and region."

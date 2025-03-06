@@ -355,7 +355,7 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::dcv-license.${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::cloudformation-waitcondition-${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*
-
+              - !Sub arn:${AWS::Partition}:s3:::fsx-lustre-client-repo/*
           - Effect: Allow # Allows access to buckets required for systems manager
             Principal: "*"
             Action: "s3:GetObject"
@@ -369,6 +369,7 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::aws-ssm-${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::aws-patchmanager-macos-${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*
+              - !Sub arn:${AWS::Partition}:s3:::fsx-lustre-client-repo/*
 
   ADAdministratorSecret:
     Type: AWS::SecretsManager::Secret

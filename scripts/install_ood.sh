@@ -90,6 +90,12 @@ node_uri: '/node'
 rnode_uri: '/rnode'
 EOF
 
+mkdir /etc/ood/config/ondemand.d
+cat << EOF >> /etc/ood/config/ondemand.d/aws-branding.yml
+dashboard_title: 'Open OnDemand on AWS'
+brand_bg_color: '#ff7f0e'
+EOF
+
 # # Tells PUN to look for home directories in EFS
 cat << EOF >> /etc/ood/config/nginx_stage.yml
 user_home_dir: '/shared/home/%{user}'
