@@ -135,7 +135,7 @@ AccountingStoragePort=6819
 EOF
 else
     echo "[-] slurmdbd.conf found, updating hosts"
-    sed -i "s/AccountingStorageHost=.*$/AccountingStorageHost=$(hostname -s)/" /etc/slurm/slurmd.conf
+    sed -i "s/AccountingStorageHost=.*$/AccountingStorageHost=$(hostname -s)/" /etc/slurm/slurm.conf
 fi
 
 cp etc/slurmdbd.service /etc/systemd/system
