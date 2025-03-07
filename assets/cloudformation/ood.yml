@@ -730,9 +730,16 @@ Resources:
           SourceSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
           Description: Ingress Rule for ComputeNode
       SecurityGroupEgress:
-        - Description: Remove default rule for egress
-          CidrIp: 127.0.0.1/32
-          IpProtocol: "-1"
+        - IpProtocol: tcp
+          Description: Egress rule for HeadNode
+          FromPort: 2049
+          ToPort: 2049
+          DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+        - IpProtocol: tcp 
+          Description: Egress rule for ComputeNodeSecurityGroup
+          FromPort: 2049
+          ToPort: 2049
+          DestinationSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
 
   SharedFileSystem:
     Condition: CreateEFSFileSystem
