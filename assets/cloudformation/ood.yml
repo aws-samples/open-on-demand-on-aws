@@ -132,9 +132,8 @@ Parameters:
     Description: Select the verion of slurm to install
     Type: String
     AllowedValues:
-      - "24.05.6"
       - "23.11.10"
-    Default: "24.05.6"
+    Default: "23.11.10"
 
 #######################
 #     Conditions      #
