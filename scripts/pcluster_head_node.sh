@@ -23,11 +23,6 @@ export RDS_ENDPOINT=$(echo $RDS_SECRET | jq -r ".host")
 export RDS_PORT=$(echo $RDS_SECRET | jq -r ".port")
 export RDS_DBNAME=$(echo $RDS_SECRET | jq -r ".dbname")
 
-# Add entry for fstab so mounts on restart
-mkdir /shared
-echo "$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/placement/availability-zone).${EFS_ID}.efs.$REGION.amazonaws.com:/ /shared efs _netdev,noresvport,tls,iam 0 0" >> /etc/fstab
-mount -a
-
 # Add spack-users group
 groupadd spack-users -g 4000
 
@@ -35,12 +30,6 @@ groupadd spack-users -g 4000
 rm -f /var/spool/slurm.state/clustername
 sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config
 service sshd restart
-
-#This line allows the users to login without the domain name
-sed -i 's/use_fully_qualified_names = True/use_fully_qualified_names = False/g' /etc/sssd/sssd.conf
-sed -i 's/fallback_homedir = \/home\/%u/fallback_homedir = \/shared\/home\/%u/' -i /etc/sssd/sssd.conf
-sleep 1
-systemctl restart sssd
 
 
 export SLURM_VERSION=$(. /etc/profile && sinfo --version | cut -d' ' -f 2)

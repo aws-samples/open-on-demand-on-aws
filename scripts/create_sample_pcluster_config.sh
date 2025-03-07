@@ -13,9 +13,17 @@ if [ -z "$STACK_NAME" ]; then
 fi
 
 export REGION=${2:-"us-east-1"}
-export DOMAIN_1=${3:-"hpclab"}
-export DOMAIN_2=${4:-"local"}
+export AD_DOMAIN=${3:-"DC=hpclab,DC=local"}
 PCLUSTER_FILENAME="pcluster-config.yml"
+
+# Generate help 
+if [ "$1" == "--help" ]; then
+  echo "Usage: $0 <stack-name> [region] [domain1] [domain2]"
+  echo "  stack-name: The name of the stack you deployed"
+  echo "  region: The region of the stack you deployed"
+  echo "  ad_domain: The LDAP DN (e.g. DC=hpclab,DC=local)"
+  exit 0
+fi
 
 echo "[-] Checking if stack '$STACK_NAME' exists in region '$REGION'..."
 if ! aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION &>/dev/null ; then
@@ -34,6 +42,7 @@ export COMPUTE_POLICY=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(
 export BUCKET_NAME=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
 export LDAP_ENDPOINT=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="LDAPNLBEndPoint") | .OutputValue')
 export MUNGEKEY_SECRET_ID=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
+export SHARED_FILESYSTEMID=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
 
 cat << EOF 
 [+] Using the following values to generate $PCLUSTER_FILENAME
@@ -143,6 +152,8 @@ cat << EOF >> $PCLUSTER_FILENAME
 EOF
 done
 
+AD_OU=$(echo $AD_DOMAIN | sed 's/DC=\([^,]*\).*/\1/')
+
 cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
@@ -182,16 +193,23 @@ LoginNodes:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
           - Policy: arn:aws:iam::aws:policy/AmazonS3FullAccess
           - Policy: arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
-          - Policy: arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess              
+          - Policy: arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
+SharedStorage:
+  - MountDir: /shared
+    Name: shared-storage
+    StorageType: Efs
+    EfsSettings:
+      FileSystemId: ${SHARED_FILESYSTEMID}
 Region: $REGION
 Image:
   Os: alinux2
 DirectoryService:
-  DomainName: $DOMAIN_1.$DOMAIN_2
+  DomainName: $AD_DOMAIN
   DomainAddr: ldap://$LDAP_ENDPOINT
   PasswordSecretArn: $AD_SECRET_ARN
-  DomainReadOnlyUser: cn=Admin,ou=Users,ou=$DOMAIN_1,dc=$DOMAIN_1,dc=$DOMAIN_2
+  DomainReadOnlyUser: cn=Admin,ou=Users,ou=$AD_OU,$AD_DOMAIN
   AdditionalSssdConfigs:
     override_homedir: /shared/home/%u
+    use_fully_qualified_names: False
     ldap_auth_disable_tls_never_use_in_production: true
 EOF

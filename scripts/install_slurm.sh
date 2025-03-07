@@ -60,6 +60,10 @@ if [ ! -f /etc/slurm/slurm.conf ]; then
 
     sed -i "s/SlurmctldHost=.*$/SlurmctldHost=$(hostname -s)/" /etc/slurm/slurm.conf
     sed -i "s/NodeName=.*$/NodeName=$(hostname -s)/" /etc/slurm/slurm.conf
+else
+    echo "[-] slurm.conf found, updating hosts"
+    sed -i "s/SlurmctldHost=.*$/SlurmctldHost=$(hostname -s)/" /etc/slurm/slurm.conf
+    sed -i "s/NodeName=.*$/NodeName=$(hostname -s)/" /etc/slurm/slurm.conf    
 fi
 
 # Add hostname -s to /etc/hosts
@@ -129,6 +133,10 @@ AccountingStorageHost=$(hostname -s)
 AccountingStorageUser=$RDS_USER
 AccountingStoragePort=6819
 EOF
+else
+    echo "[-] slurmdbd.conf found, updating hosts"
+    sed -i "s/DbdHost=.*$/DbdHost=$(hostname -s)/" /etc/slurm/slurmdbd.conf
+    sed -i "s/AccountingStorageHost=.*$/AccountingStorageHost=$(hostname -s)/" /etc/slurm/slurm.conf
 fi
 
 cp etc/slurmdbd.service /etc/systemd/system

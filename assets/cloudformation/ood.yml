@@ -31,6 +31,9 @@ Metadata:
       - Label: 
           default: Storage
         Parameters:
+          - EFSFileSystemId
+          - EFSFileSystemArn
+          - RetainEFSFileSystem
           - LoadBalancerLogBucket
       - Label:
           default: Slurm Accounting Database
@@ -49,6 +52,11 @@ Metadata:
         default: Website Domain Name
       HostedZoneId:
         default: Hosted Zone Id
+
+#######################
+#     Parameters      #
+#######################
+
 Parameters:
   DomainName:
     Description: Domain name not including the top level domain
@@ -88,14 +96,27 @@ Parameters:
   ADAdministratorSecret:
     Description: AD Admin Secret ARN
     Type: String
-    AllowedPattern: 'arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[a-zA-Z0-9/-]*'
+    AllowedPattern: '^(?:arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9\-\_\+\=\/\.\@]{1,519})?$'
   LDAPNLBEndPoint:
     Description: LDAP NLB End Point
     Type: String
   LoadBalancerLogBucket:
-    Description: S3 Bucket to store LB logs
+    Description: S3 Bucket to store Load Balancer logs
     Type: String
     AllowedPattern: '[a-z0-9.-]*'
+  EFSFileSystemId:
+    Description: (Optional) EFS Filesystem Id to mount.  If left blank a file system will be created.
+    Type: String
+  EFSFileSystemArn:
+    Description: (Required if EFSFileSystemId populated) EFS Filesystem Arn.  If left blank a file system will be created.
+    Type: String
+  RetainEFSFileSystem:
+    Description: Retain EFS Filesystem.  If a file system is not provided, this will have no affect
+    Type: String
+    Default: "False"
+    AllowedValues:
+         - "True"
+         - "False"    
   SlurmAccountingDBSecret:
     Description: Slurm Accounting DB Secret ARN
     Type: String
@@ -108,9 +129,23 @@ Parameters:
     Default: main
     Type: String
   SlurmVersion:
-    Description: Verion of slurm to install
-    Default: 23.11.10
+    Description: Select the verion of slurm to install
     Type: String
+    AllowedValues:
+      - "23.11.10"
+    Default: "23.11.10"
+
+#######################
+#     Conditions      #
+#######################
+
+Conditions:
+  CreateEFSFileSystem: !Equals [!Ref 'EFSFileSystemId', '']
+  RetainStorage: !Equals [!Ref RetainEFSFileSystem, 'True']
+
+#######################
+#     Reesources      #
+#######################
 
 Resources:
   OODCertificate:
@@ -399,7 +434,7 @@ Resources:
               - elasticfilesystem:ClientWrite
               - elasticfilesystem:ClientRootAccess
             Resource:
-              - !GetAtt SharedFileSystem.Arn
+              - !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
           - Effect: Allow
             Action:
               - logs:DescribeLogGroups
@@ -505,20 +540,22 @@ Resources:
             /etc/ood-install: !Sub https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
           files: # Creates a file with appropriate variables for use in scripts. No secrets in here
             /etc/ood-install/set_variables.sh:
-              content: !Sub |
-                export AD_SECRET_ID=${OpenOnDemandSecrets}
-                export AD_PASSWORD=${ADAdministratorSecret}
-                export AWS_REGION=${AWS::Region}
-                export DOMAIN_NAME=${DomainName}
-                export TOP_LEVEL_DOMAIN=${TopLevelDomain}
-                export RDS_SECRET_ID=${SlurmAccountingDBSecret}
-                export ALB_DNS_NAME=${ALB.DNSName}
-                export WEBSITE_DOMAIN=${WebsiteDomainName}
-                export LDAP_NLB=${LDAPNLBEndPoint}
-                export EFS_ID=${SharedFileSystem}
-                export CLUSTER_CONFIG_BUCKET=${ClusterConfigBucket}
-                export SLURM_VERSION=${SlurmVersion}
-                export MUNGEKEY_SECRET_ID=${MungeKeySecret}
+              content: !Sub 
+                - |
+                  export AD_SECRET_ID=${OpenOnDemandSecrets}
+                  export AD_PASSWORD=${ADAdministratorSecret}
+                  export AWS_REGION=${AWS::Region}
+                  export DOMAIN_NAME=${DomainName}
+                  export TOP_LEVEL_DOMAIN=${TopLevelDomain}
+                  export RDS_SECRET_ID=${SlurmAccountingDBSecret}
+                  export ALB_DNS_NAME=${ALB.DNSName}
+                  export WEBSITE_DOMAIN=${WebsiteDomainName}
+                  export LDAP_NLB=${LDAPNLBEndPoint}
+                  export EFS_ID=${EFS_FileSystemId}
+                  export CLUSTER_CONFIG_BUCKET=${ClusterConfigBucket}
+                  export SLURM_VERSION=${SlurmVersion}
+                  export MUNGEKEY_SECRET_ID=${MungeKeySecret}
+                - EFS_FileSystemId: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
               mode: "000744"
               owner: "root"
               group: "root"
@@ -693,12 +730,22 @@ Resources:
           SourceSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
           Description: Ingress Rule for ComputeNode
       SecurityGroupEgress:
-        - Description: Remove default rule for egress
-          CidrIp: 127.0.0.1/32
-          IpProtocol: "-1"
+        - IpProtocol: tcp
+          Description: Egress rule for HeadNode
+          FromPort: 2049
+          ToPort: 2049
+          DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+        - IpProtocol: tcp 
+          Description: Egress rule for ComputeNodeSecurityGroup
+          FromPort: 2049
+          ToPort: 2049
+          DestinationSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
 
   SharedFileSystem:
+    Condition: CreateEFSFileSystem
     Type: AWS::EFS::FileSystem
+    DeletionPolicy: !If [ RetainStorage, Retain, Delete ]
+    UpdateReplacePolicy: !If [ RetainStorage, Retain, Delete ]
     Properties:
       Encrypted: true
       PerformanceMode: generalPurpose
@@ -706,7 +753,7 @@ Resources:
   MountTargetResource1:
     Type: AWS::EFS::MountTarget
     Properties:
-      FileSystemId: !Ref SharedFileSystem
+      FileSystemId: !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
       SubnetId: !Select [0, !Ref PrivateSubnets]
       SecurityGroups:
         - !Ref MountTargetSecurityGroup
@@ -714,7 +761,7 @@ Resources:
   MountTargetResource2:
     Type: AWS::EFS::MountTarget
     Properties:
-      FileSystemId: !Ref SharedFileSystem
+      FileSystemId: !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
       SubnetId: !Select [1, !Ref PrivateSubnets]
       SecurityGroups:
         - !Ref MountTargetSecurityGroup
@@ -997,7 +1044,7 @@ Resources:
               - elasticfilesystem:ClientWrite
               - elasticfilesystem:ClientRootAccess
             Resource:
-              - !GetAtt SharedFileSystem.Arn
+              - !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
           - Effect: Allow
             Action:
               - cloudformation:Describe*
@@ -1022,7 +1069,7 @@ Resources:
               - elasticfilesystem:ClientWrite
               - elasticfilesystem:ClientRootAccess
             Resource:
-              - !GetAtt SharedFileSystem.Arn
+              - !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
           - Effect: Allow
             Action:
               - cloudformation:Describe* # TODO: Scope down
@@ -1042,6 +1089,11 @@ Resources:
               - kms:Decrypt
               - kms:DescribeKey
             Resource: "*"
+
+#######################
+#     Outputs         #
+#######################
+
 Outputs:
   URL:
     Description: URL
@@ -1069,7 +1121,7 @@ Outputs:
     Value: !Ref MungeKeySecret
   EFSMountId:
     Description: EFS Mount ID
-    Value: !Ref SharedFileSystem
+    Value: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
   HeadNodeIAMPolicyArn:
     Description: Parallel Cluster Head Node IAM ARN
     Value: !Ref HeadNodeParallelClusterIAMPolicy
