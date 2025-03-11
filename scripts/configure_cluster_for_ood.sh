@@ -24,6 +24,8 @@ Host ${cluster_host}
   StrictHostKeyChecking no
   UserKnownHostsFile=/dev/null
   PasswordAuthentication no
+	ServerAliveInterval 60
+ 	ServerAliveCountMax 5
 EOF
 
   # Add open ondemand desktop configuration

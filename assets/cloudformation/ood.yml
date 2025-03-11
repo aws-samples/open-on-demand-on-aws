@@ -496,7 +496,7 @@ Resources:
         - Key: access_logs.s3.prefix
           Value: portal-alb
         - Key: idle_timeout.timeout_seconds # Required to address issue with OOD SSH timeout
-          Value: 600          
+          Value: 600
 
   # Add a new secrets manager entry
   MungeKeySecret:
