@@ -1,4 +1,11 @@
-Description: Open OnDemand on AWS Full Deployment (Infrastructure + OOD)
+Description: |
+  Open OnDemand on AWS Full Deployment (Infrastructure + OOD).  
+  This template will deploy the Open OnDemand Portal along with the following infrastructure components:
+    - Networking components (VPC, Subnets, Security Groups, Route53, etc)
+    - EFS File System
+    - Active Directory
+    - S3 Gateway endpoint
+    - RDS Database for Slurm accounting
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -100,6 +107,8 @@ Resources:
         ADAdministratorSecret: !GetAtt [ OODInfra, Outputs.ADAdministratorSecretARN ]
         LDAPNLBEndPoint: !GetAtt [ OODInfra, Outputs.LDAPNLBEndPoint ]
         LoadBalancerLogBucket: !GetAtt [ OODInfra, Outputs.LoadBalancerLogBucket ]
+        EFSFileSystemId: ""
+        EFSFileSystemArn: ""
         Branch: !Ref Branch
         SlurmVersion: !Ref SlurmVersion
       TemplateURL: !Sub https://${DeploymentAssetBucketName}.s3.amazonaws.com/assets/cloudformation/ood.yml
