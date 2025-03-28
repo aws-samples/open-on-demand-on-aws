@@ -6,8 +6,8 @@ mkdir spack
 chgrp spack-users /shared/spack
 chmod g+swrx /shared/spack
 
-git clone https://github.com/spack/spack
-
+git clone -c feature.manyFiles=true --depth=2 https://github.com/spack/spack.git
+dnf swap gnupg2-minimal gnupg2-full -y -q
 . /shared/spack/share/spack/setup-env.sh
 
 spack mirror add binary_mirror https://binaries.spack.io/develop
@@ -50,11 +50,13 @@ EOF
 spack config --scope site add "modules:default:tcl:all:autoload: direct"
 spack config --scope site add "modules:default:tcl:verbose: True"
 spack config --scope site add "modules:default:tcl:hash_length: 6"
-spack config --scope site add "modules:default:tcl:projections:all: '{name}/{version}-{compiler.name}-{compiler.version}'"
-spack config --scope site add "modules:default:tcl:all:conflict: ['{name}']"
-spack config --scope site add "modules:default:tcl:all:suffixes:^cuda: cuda"
-spack config --scope site add "modules:default:tcl:all:environment:set:{name}_ROOT: '{prefix}'"
-spack config --scope site add "modules:default:tcl:openmpi:environment:set:SLURM_MPI_TYPE: 'pmix'"
-spack config --scope site add "modules:default:tcl:openmpi:environment:set:OMPI_MCA_btl_tcp_if_exclude: 'lo,docker0,virbr0'"
-spack config --scope site add "modules:default:tcl:intel-oneapi-mpi:environment:set:SLURM_MPI_TYPE: 'pmi2'"
-spack config --scope site add "modules:default:tcl:mpich:environment:set:SLURM_MPI_TYPE: 'pmi2'"
+spack config --scope site add "modules:default:tcl:projections:all:'{name}/{version}-{compiler.name}-{compiler.version}'"
+spack config --scope site add "modules:default:tcl:all:conflict:['{name}']"
+spack config --scope site add "modules:default:tcl:all:suffixes:^cuda:cuda"
+spack config --scope site add "modules:default:tcl:all:environment:set:{name}_ROOT:'{prefix}'"
+spack config --scope site add "modules:default:tcl:openmpi:environment:set:SLURM_MPI_TYPE:'pmix'"
+spack config --scope site add "modules:default:tcl:openmpi:environment:set:OMPI_MCA_btl_tcp_if_exclude:'lo,docker0,virbr0'"
+spack config --scope site add "modules:default:tcl:intel-oneapi-mpi:environment:set:SLURM_MPI_TYPE:'pmi2'"
+spack config --scope site add "modules:default:tcl:mpich:environment:set:SLURM_MPI_TYPE:'pmi2'"
+
+echo "[+] Finished!"
