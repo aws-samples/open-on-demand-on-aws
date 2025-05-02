@@ -106,6 +106,19 @@ EOF
 mkdir -p /etc/ood/config/clusters.d
 mkdir -p /etc/ood/config/apps/bc_desktop
 
+# Setup shell ping pong
+# https://osc.github.io/ood-documentation/latest/customizations.html#enable-and-configure-shell-ping-pong
+mkdir -p /etc/ood/config/apps/shell
+
+cat << EOF >> /etc/ood/config/apps/shell/env
+# Enable shell ping-ping to keep shell alive
+OOD_SHELL_PING_PONG=true
+# Timeout in milliseconds before shell is considered inactive
+OOD_SHELL_INACTIVE_TIMEOUT_MS=300000
+# Maximum duration in milliseconds before shell is considered expired
+OOD_SHELL_MAX_DURATION_MS=3600000
+EOF
+
 
 # Setup OOD add user; will add local user for AD user if doesn't exist
 touch /var/log/add_user.log
