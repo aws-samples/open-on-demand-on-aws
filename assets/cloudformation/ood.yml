@@ -71,12 +71,13 @@ Parameters:
     Default: local
     AllowedPattern: '[a-zA-Z0-9]+'
   WebsiteDomainName:
-    Description: Domain name for world facing website
+    Description: (Optional) Domain name for world facing website. If not provided, Route53 resources will not be created.
     Type: String
+    Default: ""
   HostedZoneId:
-    Description: Hosted Zone Id for Route53 Domain
+    Description: (Required if WebsiteDomainName is provided) Hosted Zone Id for Route53 Domain
     Type: String
-    AllowedPattern: '[a-zA-Z0-9]+'
+    Default: ""
   PortalAllowedIPCIDR:
     Description: IP CIDR for access to the Portal
     Default: 0.0.0.0/0
@@ -142,6 +143,8 @@ Parameters:
 Conditions:
   CreateEFSFileSystem: !Equals [!Ref 'EFSFileSystemId', '']
   RetainStorage: !Equals [!Ref RetainEFSFileSystem, 'True']
+  HasWebsiteDomain: !Not [!Equals [!Ref 'WebsiteDomainName', '']]
+  UseHTTP: !Equals [!Ref 'WebsiteDomainName', '']
 
 #######################
 #     Reesources      #
@@ -150,6 +153,7 @@ Conditions:
 Resources:
   OODCertificate:
     Type: AWS::CertificateManager::Certificate
+    Condition: HasWebsiteDomain
     Properties:
       DomainName: !Ref WebsiteDomainName
       ValidationMethod: DNS
@@ -167,6 +171,14 @@ Resources:
           ToPort: 443
           IpProtocol: tcp
           Description: HTTPS Access
+        - !If 
+          - HasWebsiteDomain
+          - !Ref AWS::NoValue
+          - CidrIp: !Ref PortalAllowedIPCIDR
+            FromPort: 80
+            ToPort: 80
+            IpProtocol: tcp
+            Description: HTTP Access when no domain is provided
       SecurityGroupEgress:
         - Description: Remove default rule for egress
           CidrIp: 127.0.0.1/32
@@ -556,6 +568,7 @@ Resources:
                   export SLURM_VERSION=${SlurmVersion}
                   export MUNGEKEY_SECRET_ID=${MungeKeySecret}
                 - EFS_FileSystemId: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
+                  WebsiteDomainName: !If [ HasWebsiteDomain, !Ref WebsiteDomainName, !GetAtt ALB.DNSName ]
               mode: "000744"
               owner: "root"
               group: "root"
@@ -781,6 +794,7 @@ Resources:
 
   OpenOnDemandListenerHTTPS:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HasWebsiteDomain
     Properties:
       DefaultActions:
         - Type: forward
@@ -791,6 +805,17 @@ Resources:
       Port: 443
       Protocol: "HTTPS"
       SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+      
+  OpenOnDemandListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: UseHTTP
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref OpenOnDemandTargetGroupHTTPS
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: "HTTP"
 
   ClusterConfigBucket:
     Type: AWS::S3::Bucket
@@ -967,6 +992,7 @@ Resources:
 
   DNSRecord:
     Type: AWS::Route53::RecordSet
+    Condition: HasWebsiteDomain
     Properties:
       HostedZoneId: !Ref HostedZoneId
       Name: !Ref WebsiteDomainName
@@ -1096,8 +1122,12 @@ Resources:
 
 Outputs:
   URL:
-    Description: URL
-    Value: !Sub http://${ALB.DNSName}
+    Description: Open OnDemand URL
+    Value:
+      !If
+        - HasWebsiteDomain
+        - !Sub "https://${WebsiteDomainName}"
+        - !Sub "http://${ALB.DNSName}"
   ClusterConfigBucket:
     Description: S3 Bucket where Cluster Configuration items are stored
     Value: !Ref ClusterConfigBucket
