@@ -54,13 +54,21 @@ chown root:root /etc/sssd/sssd.conf
 chmod 600 /etc/sssd/sssd.conf
 systemctl restart sssd
 
+if [ "$OOD_HTTP" = "true" ]; then
+  # Convert WEBSITE_DOMAIN to lowercase
+  WEBSITE_DOMAIN=$(echo "$WEBSITE_DOMAIN" | tr '[:upper:]' '[:lower:]')
+
+  sed -i "s/#port: null/port: 80/" /etc/ood/config/ood_portal.yml
+fi
 sed -i "s/#servername: null/servername: $WEBSITE_DOMAIN/" /etc/ood/config/ood_portal.yml
 
-cat << EOF >> /etc/ood/config/ood_portal.yml
+if [[ "$OOD_HTTP" == "false" ]]; then
+  cat << EOF >> /etc/ood/config/ood_portal.yml
 ssl:
   - 'SSLCertificateFile "/etc/ssl/private/cert.crt"'
   - 'SSLCertificateKeyFile "/etc/ssl/private/private_key.key"'
 EOF
+fi
 
 cat << EOF >> /etc/ood/config/ood_portal.yml
 dex_uri: /dex
@@ -89,6 +97,10 @@ host_regex: '[^/]+'
 node_uri: '/node'
 rnode_uri: '/rnode'
 EOF
+
+if [ "$OOD_HTTP" = "true" ]; then
+  sed -i "s/ssl: true/ssl: false/" /etc/ood/config/ood_portal.yml
+fi
 
 mkdir -p /etc/ood/config/ondemand.d
 cat << EOF >> /etc/ood/config/ondemand.d/aws-branding.yml

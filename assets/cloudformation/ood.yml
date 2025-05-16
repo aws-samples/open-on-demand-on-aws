@@ -567,8 +567,10 @@ Resources:
                   export CLUSTER_CONFIG_BUCKET=${ClusterConfigBucket}
                   export SLURM_VERSION=${SlurmVersion}
                   export MUNGEKEY_SECRET_ID=${MungeKeySecret}
+                  export OOD_HTTP="${OOD_HTTP}"
                 - EFS_FileSystemId: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
                   WebsiteDomainName: !If [ HasWebsiteDomain, !Ref WebsiteDomainName, !GetAtt ALB.DNSName ]
+                  OOD_HTTP: !If [ UseHTTP, "true", "false" ]
               mode: "000744"
               owner: "root"
               group: "root"
@@ -679,7 +681,7 @@ Resources:
         Version: !GetAtt OpenOnDemandLaunchTemplate.LatestVersionNumber
       VPCZoneIdentifier: !Ref PrivateSubnets
       TargetGroupARNs:
-        - !Ref OpenOnDemandTargetGroupHTTPS
+        - !If [ HasWebsiteDomain, !Ref OpenOnDemandTargetGroupHTTPS, !Ref OpenOnDemandTargetGroupHTTP ]
       Tags:
         - Key: Name
           Value: !Sub OpenOnDemand Portal - ${AWS::StackName}-cfn-init
@@ -792,6 +794,18 @@ Resources:
       Matcher:
         HttpCode: 301
 
+  OpenOnDemandTargetGroupHTTP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: UseHTTP
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 6
+      HealthCheckTimeoutSeconds: 5
+      TargetType: instance
+      Protocol: HTTP
+      Port: 80
+      VpcId: !Ref VPC
+
   OpenOnDemandListenerHTTPS:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Condition: HasWebsiteDomain
@@ -812,7 +826,7 @@ Resources:
     Properties:
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref OpenOnDemandTargetGroupHTTPS
+          TargetGroupArn: !Ref OpenOnDemandTargetGroupHTTP
       LoadBalancerArn: !Ref ALB
       Port: 80
       Protocol: "HTTP"
