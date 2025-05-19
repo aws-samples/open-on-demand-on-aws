@@ -14,6 +14,12 @@ dnf install /tmp/ondemand-release-web-4.0-1.amzn2023.noarch.rpm -yq
 dnf update -yq
 dnf install ondemand ondemand-dex krb5-workstation samba -yq
 
+# Fix for node-pty module compatibility issues
+dnf install gcc-c++ make nodejs-devel -y -q
+cd /var/www/ood/apps/sys/shell
+npm rebuild node-pty
+cd -
+
 echo "$(date +%Y%m%d-%H%M) | ood installed" >> /var/log/install.txt
 export AD_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_SECRET_ID --query SecretString --output text)
 export AD_PASSWORD=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_PASSWORD --query SecretString --output text)
