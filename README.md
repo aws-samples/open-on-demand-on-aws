@@ -20,7 +20,7 @@ The primary components of the solution are:
 
 ## Prerequisites
 
-This solution was tested with AWS ParallelCluster version [3.11.0](https://github.com/aws/aws-parallelcluster/releases/tag/v3.11.0)
+This solution was tested with AWS ParallelCluster version [3.13.0](https://github.com/aws/aws-parallelcluster/releases/tag/v3.13.0)
 
 ## Deployment 🚀
 

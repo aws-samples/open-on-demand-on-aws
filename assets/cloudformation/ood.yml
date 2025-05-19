@@ -134,8 +134,9 @@ Parameters:
     Type: String
     AllowedValues:
       - "23.11.10"
-      - "24.11.5"
-    Default: "24.11.5"
+      - "24.05.07" # PCluster 3.13
+      - "24.11.5" # PCS
+    Default: "24.05.07"
 
 #######################
 #     Conditions      #
