@@ -806,6 +806,8 @@ Resources:
       Protocol: HTTP
       Port: 80
       VpcId: !Ref VPC
+      Matcher:
+        HttpCode: 301
 
   OpenOnDemandListenerHTTPS:
     Type: AWS::ElasticLoadBalancingV2::Listener
