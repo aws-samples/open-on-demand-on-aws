@@ -83,7 +83,7 @@ dex:
             insecureSkipVerify: false
             insecureNoSSL: true
             bindDN: CN=Admin,OU=Users,OU=$DOMAIN_NAME,DC=$DOMAIN_NAME,DC=$TOP_LEVEL_DOMAIN
-            bindPW: $AD_PASSWORD
+            bindPW: "$AD_PASSWORD"
             userSearch:
               baseDN: dc=$DOMAIN_NAME,dc=$TOP_LEVEL_DOMAIN
               filter: "(objectClass=user)"
