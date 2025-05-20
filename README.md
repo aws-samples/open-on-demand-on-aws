@@ -47,32 +47,22 @@ Once deployed, you should be able to navigate to the URL you set up as a CloudFo
 
 ### Deploying an integrated Parallel Cluster HPC Cluster
 
-The OOD solution is built so that an [AWS ParallelCluster](https://docs.aws.amazon.com/parallelcluster/latest/ug/what-is-aws-parallelcluster.html) HPC Cluster can be created and automatically registered with the portal.
+The OOD solution is built to integrate with [AWS ParallelCluster](https://docs.aws.amazon.com/parallelcluster/latest/ug/what-is-aws-parallelcluster.html) HPC Cluster can be created and automatically registered with the portal.
+To deploy a ParallelCluster refer to [Setting up AWS ParallelCluster](https://docs.aws.amazon.com/parallelcluster/latest/ug/install-v3.html) to get started.  This includes (but not limited to):
 
-In your Parallel Cluster config, you must set the following values:
+- Install [AWS ParallelCluster CLI](https://docs.aws.amazon.com/parallelcluster/latest/ug/install-v3-parallelcluster.html)
+- Create ParallelCluster [configuration file](https://docs.aws.amazon.com/parallelcluster/latest/ug/cluster-configuration-file-v3.html)
 
-1. **HeadNode**:
-    1. SubnetId: `PrivateSubnets` from OOD Stack Output
-    1. AdditionalScurityGroups: `HeadNodeSecurityGroup` from CloudFormation Outputs
-    1. AdditionalIAMPolicies: `HeadNodeIAMPolicyArn` from CloudFormation Outputs
-    1. OnNodeConfigured
-        1. Script: CloudFormation Output for the `ClusterConfigBucket`; in the format `s3://$ClusterConfigBucket/pcluster_head_node.sh`
-        1. Args: Open OnDemand CloudFormation stack name
-1. **SlurmQueues**:
-    1. SubnetId: `PrivateSubnets` from OOD Stack Output
-    1. AdditionalScurityGroups: `ComputeNodeSecurityGroup` from CloudFormation Outputs
-    1. AdditionalIAMPolicies: `ComputeNodeIAMPolicyArn` from CloudFormation Outputs
-    1. OnNodeConfigured
-        1. Script: CloudFormation Output for the `ClusterConfigBucket`; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
-        . Args: Open OnDemand CloudFormation stack name
-1. **LoginNode**:
-    1. OnNodeConfigured
-        1. Script: CloudFormation Output for the `ClusterConfigBucket`; in the format `s3://$ClusterConfigBucket/configure_login_nodes.sh`
-        1. Args: Open OnDemand CloudFormation stack name
+#### Automatically generate ParallelCluster configuration
 
----
+To create a `pcluster` [configuration file](https://docs.aws.amazon.com/parallelcluster/latest/ug/cluster-configuration-file-v3.html) the [scripts/create_sample_pcluster_config.sh](scripts/create_sample_pcluster_config.sh) script can be used to automatically build a configuration file
 
-To make this easier a sample `pcluster` configuration can be created using [scripts/create_sample_pcluster_config.sh](scripts/create_sample_pcluster_config.sh)
+_Example to create a `pcluster-config.yml` file
+
+```bash
+./create_sample_pcluster_config.sh ood
+```
+**Usage**
 
 ```
 Usage: ./scripts/create_sample_pcluster_config.sh <stack-name> [region] [domain1] [domain2]
@@ -81,6 +71,32 @@ Usage: ./scripts/create_sample_pcluster_config.sh <stack-name> [region] [domain1
   domain1: The first domain name to use for the cluster
   domain2: The second domain name to use for the cluster
 ```
+
+
+#### Manual Cluster Configuration
+
+To create the ParallelCluster [configuration file](https://docs.aws.amazon.com/parallelcluster/latest/ug/cluster-configuration-file-v3.html) refer to the following information:
+
+1. **HeadNode**:
+    1. SubnetId: `PrivateSubnets` from OOD Stack Output
+    2. AdditionalScurityGroups: `HeadNodeSecurityGroup` from CloudFormation Outputs
+    3. AdditionalIAMPolicies: `HeadNodeIAMPolicyArn` from CloudFormation Outputs
+    4. OnNodeConfigured
+        1. Script: CloudFormation Output for the `ClusterConfigBucket`; in the format `s3://$ClusterConfigBucket/pcluster_head_node.sh`
+        2. Args: Open OnDemand CloudFormation stack name
+2. **SlurmQueues**:
+    1. SubnetId: `PrivateSubnets` from OOD Stack Output
+    2. AdditionalScurityGroups: `ComputeNodeSecurityGroup` from CloudFormation Outputs
+    3. AdditionalIAMPolicies: `ComputeNodeIAMPolicyArn` from CloudFormation Outputs
+    4. OnNodeConfigured
+        1. Script: CloudFormation Output for the `ClusterConfigBucket`; in the format `s3://$ClusterConfigBucket/pcluster_worker_node.sh`
+        . Args: Open OnDemand CloudFormation stack name
+3. **LoginNode**:
+    1. OnNodeConfigured
+        1. Script: CloudFormation Output for the `ClusterConfigBucket`; in the format `s3://$ClusterConfigBucket/configure_login_nodes.sh`
+        2. Args: Open OnDemand CloudFormation stack name
+
+---
 
 #### Optional - Enable pam_slurm_adopt module for Parallel Cluster compute nodes
 
