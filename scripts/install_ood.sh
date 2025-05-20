@@ -106,6 +106,14 @@ EOF
 
 if [ "$OOD_HTTP" = "true" ]; then
   sed -i "s/ssl: true/ssl: false/" /etc/ood/config/ood_portal.yml
+
+  # Modify the myjobs initializer 
+  # change the session store to address CRSF errors when using HTTP
+  mkdir -p /etc/ood/config/apps/myjobs/initializers
+  cat << EOF >> /etc/ood/config/apps/myjobs/initializers/session_store.rb
+  # change the session store to address CRSF errors when using HTTP
+  Rails.application.config.session_store :cookie_store, key: '_myjobs_session', secure: false
+EOF
 fi
 
 mkdir -p /etc/ood/config/ondemand.d
