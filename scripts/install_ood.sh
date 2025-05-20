@@ -14,6 +14,12 @@ dnf install /tmp/ondemand-release-web-4.0-1.amzn2023.noarch.rpm -yq
 dnf update -yq
 dnf install ondemand ondemand-dex krb5-workstation samba -yq
 
+# Fix for node-pty module compatibility issues
+dnf install gcc-c++ make nodejs-devel -y -q
+cd /var/www/ood/apps/sys/shell
+npm rebuild node-pty
+cd -
+
 echo "$(date +%Y%m%d-%H%M) | ood installed" >> /var/log/install.txt
 export AD_SECRET=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_SECRET_ID --query SecretString --output text)
 export AD_PASSWORD=$(aws secretsmanager --region $AWS_REGION get-secret-value --secret-id $AD_PASSWORD --query SecretString --output text)
@@ -54,13 +60,21 @@ chown root:root /etc/sssd/sssd.conf
 chmod 600 /etc/sssd/sssd.conf
 systemctl restart sssd
 
+if [ "$OOD_HTTP" = "true" ]; then
+  # Convert WEBSITE_DOMAIN to lowercase
+  WEBSITE_DOMAIN=$(echo "$WEBSITE_DOMAIN" | tr '[:upper:]' '[:lower:]')
+
+  sed -i "s/#port: null/port: 80/" /etc/ood/config/ood_portal.yml
+fi
 sed -i "s/#servername: null/servername: $WEBSITE_DOMAIN/" /etc/ood/config/ood_portal.yml
 
-cat << EOF >> /etc/ood/config/ood_portal.yml
+if [[ "$OOD_HTTP" == "false" ]]; then
+  cat << EOF >> /etc/ood/config/ood_portal.yml
 ssl:
   - 'SSLCertificateFile "/etc/ssl/private/cert.crt"'
   - 'SSLCertificateKeyFile "/etc/ssl/private/private_key.key"'
 EOF
+fi
 
 cat << EOF >> /etc/ood/config/ood_portal.yml
 dex_uri: /dex
@@ -75,7 +89,7 @@ dex:
             insecureSkipVerify: false
             insecureNoSSL: true
             bindDN: CN=Admin,OU=Users,OU=$DOMAIN_NAME,DC=$DOMAIN_NAME,DC=$TOP_LEVEL_DOMAIN
-            bindPW: $AD_PASSWORD
+            bindPW: "$AD_PASSWORD"
             userSearch:
               baseDN: dc=$DOMAIN_NAME,dc=$TOP_LEVEL_DOMAIN
               filter: "(objectClass=user)"
@@ -89,6 +103,18 @@ host_regex: '[^/]+'
 node_uri: '/node'
 rnode_uri: '/rnode'
 EOF
+
+if [ "$OOD_HTTP" = "true" ]; then
+  sed -i "s/ssl: true/ssl: false/" /etc/ood/config/ood_portal.yml
+
+  # Modify the myjobs initializer 
+  # change the session store to address CRSF errors when using HTTP
+  mkdir -p /etc/ood/config/apps/myjobs/initializers
+  cat << EOF >> /etc/ood/config/apps/myjobs/initializers/session_store.rb
+  # change the session store to address CRSF errors when using HTTP
+  Rails.application.config.session_store :cookie_store, key: '_myjobs_session', secure: false
+EOF
+fi
 
 mkdir -p /etc/ood/config/ondemand.d
 cat << EOF >> /etc/ood/config/ondemand.d/aws-branding.yml
