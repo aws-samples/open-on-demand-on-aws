@@ -31,7 +31,7 @@ rm -f /var/spool/slurm.state/clustername
 sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config
 service sshd restart
 
-
+systemctl stop slurmctld
 export SLURM_VERSION=$(. /etc/profile && sinfo --version | cut -d' ' -f 2)
 sed -i "s/ClusterName=.*$/ClusterName=$CLUSTER_NAME/" /opt/slurm/etc/slurm.conf
 
@@ -127,14 +127,14 @@ systemctl daemon-reload
 systemctl enable slurmdbd
 systemctl start slurmdbd
 
-# Add cluster to slurm accounting
-systemctl restart slurmctld
-systemctl restart slurmdbd
+echo "Adding '$CLUSTER_NAME' to slurm accounting"
+systemctl start slurmctld
 sacctmgr --quiet add cluster $CLUSTER_NAME
+echo "sacctmgr output: $(sacctmgr show cluster)"
 
+# Copy the cluster config to S3
 aws s3 cp /etc/ood/config/clusters.d/$CLUSTER_NAME.yml s3://$S3_CONFIG_BUCKET/clusters/$CLUSTER_NAME.yml
 
-#
 cat >> /etc/bashrc << 'EOF'
 PATH=$PATH:/shared/software/bin
 EOF
