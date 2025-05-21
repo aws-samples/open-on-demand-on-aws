@@ -127,6 +127,7 @@ systemctl daemon-reload
 systemctl enable slurmdbd
 systemctl start slurmdbd
 
+sleep 10
 echo "Adding '$CLUSTER_NAME' to slurm accounting"
 systemctl start slurmctld
 sacctmgr --quiet add cluster $CLUSTER_NAME
