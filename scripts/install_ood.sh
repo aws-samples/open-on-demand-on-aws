@@ -110,10 +110,20 @@ if [ "$OOD_HTTP" = "true" ]; then
   # Modify the myjobs initializer 
   # change the session store to address CRSF errors when using HTTP
   mkdir -p /etc/ood/config/apps/myjobs/initializers
+  # Modify the myjobs initializer in /var/www/ood/apps/sys/myjobs/config/initializers/session_store.rb
+  # to use cookie_store instead of the default cache_store
+  cat << EOF > /var/www/ood/apps/sys/myjobs/config/initializers/session_store.rb
+# change the session store to address CRSF errors when using HTTP
+Rails.application.config.session_store :cookie_store, key: '_myjobs_session', secure: false
+EOF
+
   cat << EOF >> /etc/ood/config/apps/myjobs/initializers/session_store.rb
 # change the session store to address CRSF errors when using HTTP
 Rails.application.config.session_store :cookie_store, key: '_myjobs_session', secure: false
 EOF
+
+  # Restart httpd to pick up the changes
+  systemctl restart httpd
 fi
 
 mkdir -p /etc/ood/config/ondemand.d
