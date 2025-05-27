@@ -36,15 +36,16 @@ Metadata:
           - RetainEFSFileSystem
           - LoadBalancerLogBucket
       - Label:
-          default: Slurm Accounting Database
+          default: Slurm Configurations
         Parameters:
           - SlurmAccountingDBSecret
           - SlurmAccountingDBSecurityGroup
+          - MungeKeySecretArn
+          - SlurmVersion
       - Label:
           default: Open OnDemand
         Parameters:
           - Branch
-          - SlurmVersion
     ParameterLabels:
       PortalAllowedIPCIDR:
         default: Portal Allowed IP CIDR
@@ -119,12 +120,14 @@ Parameters:
          - "True"
          - "False"    
   SlurmAccountingDBSecret:
-    Description: Slurm Accounting DB Secret ARN
+    Description: (Optional) Slurm Accounting DB Secret ARN.
     Type: String
-    AllowedPattern: 'arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[a-zA-Z0-9/-]*'
   SlurmAccountingDBSecurityGroup:
-    Description: Slurm Accounting DB Security Group
+    Description: (Optional) Slurm Accounting DB Security Group.
     Type: AWS::EC2::SecurityGroup::Id
+  MungeKeySecretArn:
+    Description: (Optional) Munge Key Secret ARN.  If left blank a munge key will be created.
+    Type: String
   Branch:
     Description: Branch of the code to deploy. Only use this when testing changes to the solution
     Default: main
@@ -147,6 +150,8 @@ Conditions:
   RetainStorage: !Equals [!Ref RetainEFSFileSystem, 'True']
   HasWebsiteDomain: !Not [!Equals [!Ref 'WebsiteDomainName', '']]
   UseHTTP: !Equals [!Ref 'WebsiteDomainName', '']
+  UseSlurmAccountingDB: !Not [!Equals [!Ref 'SlurmAccountingDBSecret', '']]
+  CreateMungeKey: !Equals [!Ref 'MungeKeySecretArn', '']
 
 #######################
 #     Reesources      #
@@ -426,13 +431,13 @@ Resources:
             Resource:
               - !Ref ADAdministratorSecret
               - !Ref OpenOnDemandSecrets
-              - !Ref SlurmAccountingDBSecret
+              - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecret, !Ref AWS::NoValue ]
           - Effect: Allow
             Action: 
               - secretsmanager:GetSecretValue
               - secretsmanager:PutSecretValue
             Resource:
-              - !Ref MungeKeySecret
+              - !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -514,6 +519,7 @@ Resources:
 
   # Add a new secrets manager entry
   MungeKeySecret:
+    Condition: CreateMungeKey
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Munge Key for Open OnDemand
@@ -572,6 +578,7 @@ Resources:
                   export OOD_HTTP="${OOD_HTTP}"
                 - EFS_FileSystemId: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
                   WebsiteDomainName: !If [ HasWebsiteDomain, !Ref WebsiteDomainName, !GetAtt ALB.DNSName ]
+                  MungeKeySecret: !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
                   OOD_HTTP: !If [ UseHTTP, "true", "false" ]
               mode: "000744"
               owner: "root"
@@ -667,7 +674,7 @@ Resources:
             ln -s $INSTALL_PATH/cfn-send-cmd-result /opt/aws/bin/cfn-send-cmd-result
 
             # Call cfn-init script to install files and packages
-            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configset config
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configsets config
             
             # Signal the stack that the instance is ready
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource OODServerASG --region ${AWS::Region}
@@ -695,9 +702,12 @@ Resources:
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT10M
+        Timeout: PT15M
     UpdatePolicy:
-      AutoScalingRollingUpdate: {}
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        PauseTime: PT15M
+        WaitOnResourceSignals: true
 
   ComputeNodeMountTargetEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -1026,6 +1036,7 @@ Resources:
 
   DatabaseSecurityGroupIngressOOD:
     Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       GroupId: !Ref SlurmAccountingDBSecurityGroup
@@ -1036,6 +1047,7 @@ Resources:
 
   DatabaseSecurityGroupIngressHeadNode:
     Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       GroupId: !Ref SlurmAccountingDBSecurityGroup
@@ -1046,6 +1058,7 @@ Resources:
 
   HeadNodeDBEgress:
     Type: AWS::EC2::SecurityGroupEgress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       FromPort: 3306
@@ -1056,6 +1069,7 @@ Resources:
 
   PortalDBEgress:
     Type: AWS::EC2::SecurityGroupEgress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       FromPort: 3306
@@ -1076,9 +1090,9 @@ Resources:
               - secretsmanager:DescribeSecret
             Resource:
               - !Ref OpenOnDemandSecrets
-              - !Ref SlurmAccountingDBSecret
+              - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecret, !Ref AWS::NoValue ]
               - !Ref ADAdministratorSecret
-              - !Ref MungeKeySecret
+              - !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref AWS::NoValue ]
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -1171,10 +1185,13 @@ Outputs:
     Value: !Ref ADAdministratorSecret
   MungeKeySecretId:
     Description: Munge Key Secret ARN
-    Value: !Ref MungeKeySecret
+    Value: !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
   EFSMountId:
     Description: EFS Mount ID
     Value: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
+  EFSFileSystemArn:
+    Description: EFS File System ARN
+    Value: !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
   HeadNodeIAMPolicyArn:
     Description: Parallel Cluster Head Node IAM ARN
     Value: !Ref HeadNodeParallelClusterIAMPolicy
