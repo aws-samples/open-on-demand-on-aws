@@ -13,7 +13,7 @@ repos:
     - id: cfn_nag
       name: cfn_nag
       description:  Looks for patterns in CloudFormation templates that may indicate insecure infrastructure.
-      entry: cfn_nag_scan --input-path
+      entry: cfn_nag_scan --deny-list-path .deny-list.yml --input-path
       language: ruby
       exclude: ^(.pre-commit-config.yaml)$
       files: assets/cloudformation/.*\.(yaml|yml|json|template)$
