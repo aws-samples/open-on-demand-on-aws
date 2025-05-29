@@ -675,8 +675,10 @@ Resources:
             ln -s $INSTALL_PATH/cfn-send-cmd-result /opt/aws/bin/cfn-send-cmd-result
 
             # Call cfn-init script to install files and packages
-            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configset config
-
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configsets config
+            
+            # Signal the stack that the instance is ready
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource OODServerASG --region ${AWS::Region}
   OODServerASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -699,8 +701,13 @@ Resources:
         - Key: ood
           Value: !Sub webportal-${AWS::StackName}
           PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
     UpdatePolicy:
-      AutoScalingRollingUpdate: {}
+      AutoScalingRollingUpdate:
+        PauseTime: PT15M
+        WaitOnResourceSignals: true
 
   ComputeNodeMountTargetEgress:
     Type: AWS::EC2::SecurityGroupEgress
