@@ -2,6 +2,9 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
+STACK_NAME=$1
+RETENTION_DAYS=${2:-30}
+
 cat << EOF > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 {
         "agent": {
@@ -14,29 +17,50 @@ cat << EOF > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
                                 "collect_list": [
                                         {
                                                 "file_path": "/var/log/slurm/slurmd.log",
-                                                "log_group_name": "\${AWS::StackName}",
-                                                "log_stream_name": "{instance_id}/slurmd.log"
+                                                "log_group_name": "${STACK_NAME}",
+                                                "log_stream_name": "{instance_id}/slurmd.log",
+                                                "retention_in_days": ${RETENTION_DAYS}
                                         },
                                         {
                                                 "file_path": "/var/log/slurm/slurmdbd.log",
-                                                "log_group_name": "\${AWS::StackName}",
-                                                "log_stream_name": "{instance_id}/slurmdbd.log"
+                                                "log_group_name": "${STACK_NAME}",
+                                                "log_stream_name": "{instance_id}/slurmdbd.log",
+                                                "retention_in_days": ${RETENTION_DAYS}
                                         },
                                         {
-                                                "file_path": "/var/log/slurm/slurmctld.log",
-                                                "log_group_name": "\${AWS::StackName}",
-                                                "log_stream_name": "{instance_id}/slurmctld.log"
+                                                "file_path": "/var/log/slurmctld.log",
+                                                "log_group_name": "${STACK_NAME}",
+                                                "log_stream_name": "{instance_id}/slurmctld.log",
+                                                "retention_in_days": ${RETENTION_DAYS}
+                                        },
+                                        {
+                                                "file_path": "/var/log/sbatch.log",
+                                                "log_group_name": "${STACK_NAME}",
+                                                "log_stream_name": "{instance_id}/sbatch.log",
+                                                "retention_in_days": ${RETENTION_DAYS}
                                         },
                                         {
                                                 "file_path": "/var/log/ondemand-nginx/**",
-                                                "log_group_name": "\${AWS::StackName}",
-                                                "log_stream_name": "{instance_id}/ondemand-nginx"
+                                                "log_group_name": "${STACK_NAME}",
+                                                "log_stream_name": "{instance_id}/ondemand-nginx",
+                                                "retention_in_days": ${RETENTION_DAYS}
                                         },
                                         {
-                                                "file_path": "/var/log/ondemand-nginx/**",
-                                                "log_group_name": "\${AWS::StackName}",
-                                                "log_stream_name": "ondemand-httpd/{instance_id}"
-                                        }
+                                                "file_path": "/var/log/httpd/**",
+                                                "log_group_name": "${STACK_NAME}",
+                                                "log_stream_name": "{instance_id}/ondemand-httpd",
+                                                "retention_in_days": ${RETENTION_DAYS}
+                                        },
+                                        {
+                                                "file_path": "/var/log/cfn-init.log",
+                                                "log_group_name": "${STACK_NAME}",
+                                                "log_stream_name": "{instance_id}/cfn-init.log"
+                                        },
+                                        {
+                                                "file_path": "/var/log/cfn-init-cmd.log",
+                                                "log_group_name": "${STACK_NAME}",
+                                                "log_stream_name": "{instance_id}/cfn-init-cmd.log"
+                                        }                                        
                                 ]
                         }
                 }

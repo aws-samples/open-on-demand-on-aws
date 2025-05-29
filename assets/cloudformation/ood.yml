@@ -481,6 +481,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
         - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
         - !Ref OODInstanceManagedPolicy
       Tags:
         - Key: Name
@@ -584,7 +585,7 @@ Resources:
         setupInfrastructure:
           commands:
             1_configure_cloudwatch:
-              command: ./configure_cloudwatch_metrics.sh
+              command: !Sub ./configure_cloudwatch_metrics.sh ${AWS::StackName}
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             2_mount_efs:
               command: |
