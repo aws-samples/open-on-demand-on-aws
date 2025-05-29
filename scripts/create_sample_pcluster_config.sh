@@ -39,6 +39,7 @@ export HEAD_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.Output
 export HEAD_POLICY=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeIAMPolicyArn") | .OutputValue')
 export COMPUTE_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeSecurityGroup") | .OutputValue')
 export COMPUTE_POLICY=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeIAMPolicyArn") | .OutputValue')
+export EFS_CLIENT_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EfsClientSecurityGroup") | .OutputValue')
 export BUCKET_NAME=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
 export LDAP_ENDPOINT=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="LDAPNLBEndPoint") | .OutputValue')
 export MUNGEKEY_SECRET_ID=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
@@ -79,6 +80,7 @@ HeadNode:
     SubnetId: ${subnets[0]}
     AdditionalSecurityGroups:
       - $HEAD_SG
+      - $EFS_CLIENT_SG
   LocalStorage:
     RootVolume:
       VolumeType: gp3
@@ -120,6 +122,7 @@ done
 cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
+          - $EFS_CLIENT_SG
       ComputeSettings:
         LocalStorage:
           RootVolume:
@@ -157,6 +160,7 @@ AD_OU=$(echo $AD_DOMAIN | sed 's/DC=\([^,]*\).*/\1/')
 cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
+          - $EFS_CLIENT_SG
       ComputeSettings:
         LocalStorage:
           RootVolume:
@@ -182,6 +186,7 @@ LoginNodes:
           - ${subnets[0]}
         AdditionalSecurityGroups:
           - $COMPUTE_SG
+          - $EFS_CLIENT_SG
       CustomActions:
         OnNodeConfigured:
           Script: >-
