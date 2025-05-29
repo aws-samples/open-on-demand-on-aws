@@ -36,15 +36,16 @@ Metadata:
           - RetainEFSFileSystem
           - LoadBalancerLogBucket
       - Label:
-          default: Slurm Accounting Database
+          default: Slurm Configurations
         Parameters:
           - SlurmAccountingDBSecret
           - SlurmAccountingDBSecurityGroup
+          - MungeKeySecretArn
+          - SlurmVersion
       - Label:
           default: Open OnDemand
         Parameters:
           - Branch
-          - SlurmVersion
     ParameterLabels:
       PortalAllowedIPCIDR:
         default: Portal Allowed IP CIDR
@@ -119,12 +120,14 @@ Parameters:
          - "True"
          - "False"    
   SlurmAccountingDBSecret:
-    Description: Slurm Accounting DB Secret ARN
+    Description: (Optional) Slurm Accounting DB Secret ARN.
     Type: String
-    AllowedPattern: 'arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[a-zA-Z0-9/-]*'
   SlurmAccountingDBSecurityGroup:
-    Description: Slurm Accounting DB Security Group
+    Description: (Optional) Slurm Accounting DB Security Group.
     Type: AWS::EC2::SecurityGroup::Id
+  MungeKeySecretArn:
+    Description: (Optional) Munge Key Secret ARN.  If left blank a munge key will be created.
+    Type: String
   Branch:
     Description: Branch of the code to deploy. Only use this when testing changes to the solution
     Default: main
@@ -147,6 +150,8 @@ Conditions:
   RetainStorage: !Equals [!Ref RetainEFSFileSystem, 'True']
   HasWebsiteDomain: !Not [!Equals [!Ref 'WebsiteDomainName', '']]
   UseHTTP: !Equals [!Ref 'WebsiteDomainName', '']
+  UseSlurmAccountingDB: !Not [!Equals [!Ref 'SlurmAccountingDBSecret', '']]
+  CreateMungeKey: !Equals [!Ref 'MungeKeySecretArn', '']
 
 #######################
 #     Reesources      #
@@ -426,13 +431,13 @@ Resources:
             Resource:
               - !Ref ADAdministratorSecret
               - !Ref OpenOnDemandSecrets
-              - !Ref SlurmAccountingDBSecret
+              - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecret, !Ref AWS::NoValue ]
           - Effect: Allow
             Action: 
               - secretsmanager:GetSecretValue
               - secretsmanager:PutSecretValue
             Resource:
-              - !Ref MungeKeySecret
+              - !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -515,6 +520,7 @@ Resources:
 
   # Add a new secrets manager entry
   MungeKeySecret:
+    Condition: CreateMungeKey
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Munge Key for Open OnDemand
@@ -573,6 +579,7 @@ Resources:
                   export OOD_HTTP="${OOD_HTTP}"
                 - EFS_FileSystemId: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
                   WebsiteDomainName: !If [ HasWebsiteDomain, !Ref WebsiteDomainName, !GetAtt ALB.DNSName ]
+                  MungeKeySecret: !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
                   OOD_HTTP: !If [ UseHTTP, "true", "false" ]
               mode: "000744"
               owner: "root"
@@ -1020,8 +1027,13 @@ Resources:
         HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
       Type: A
 
+  #########################################################
+  # Database Security Groups
+  #########################################################
+
   DatabaseSecurityGroupIngressOOD:
     Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       GroupId: !Ref SlurmAccountingDBSecurityGroup
@@ -1032,6 +1044,7 @@ Resources:
 
   DatabaseSecurityGroupIngressHeadNode:
     Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       GroupId: !Ref SlurmAccountingDBSecurityGroup
@@ -1042,6 +1055,7 @@ Resources:
 
   HeadNodeDBEgress:
     Type: AWS::EC2::SecurityGroupEgress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       FromPort: 3306
@@ -1052,6 +1066,7 @@ Resources:
 
   PortalDBEgress:
     Type: AWS::EC2::SecurityGroupEgress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       FromPort: 3306
@@ -1072,9 +1087,9 @@ Resources:
               - secretsmanager:DescribeSecret
             Resource:
               - !Ref OpenOnDemandSecrets
-              - !Ref SlurmAccountingDBSecret
+              - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecret, !Ref AWS::NoValue ]
               - !Ref ADAdministratorSecret
-              - !Ref MungeKeySecret
+              - !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref AWS::NoValue ]
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -1167,7 +1182,7 @@ Outputs:
     Value: !Ref ADAdministratorSecret
   MungeKeySecretId:
     Description: Munge Key Secret ARN
-    Value: !Ref MungeKeySecret
+    Value: !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
   EFSMountId:
     Description: EFS Mount ID
     Value: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
