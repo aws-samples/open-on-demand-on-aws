@@ -21,6 +21,7 @@ Metadata:
           - VPC
           - PublicSubnets
           - PrivateSubnets
+          - PCSClusterSecurityGroup
       - Label:
           default: Active Directory
         Parameters:
@@ -40,6 +41,7 @@ Metadata:
         Parameters:
           - SlurmAccountingDBSecret
           - SlurmAccountingDBSecurityGroup
+          - SlurmAccountingDBSecretPassword
           - MungeKeySecretArn
           - SlurmVersion
       - Label:
@@ -95,6 +97,9 @@ Parameters:
   PrivateSubnets:
     Description: Private subnets
     Type: List<AWS::EC2::Subnet::Id>
+  PCSClusterSecurityGroup:
+    Description: (Optional) PCS Cluster Security Group
+    Type: String
   ADAdministratorSecret:
     Description: AD Admin Secret ARN
     Type: String
@@ -122,9 +127,12 @@ Parameters:
   SlurmAccountingDBSecret:
     Description: (Optional) Slurm Accounting DB Secret ARN.
     Type: String
+  SlurmAccountingDBSecretPassword:
+    Description: (Optional) Slurm Accounting DB Secret Password.
+    Type: String
   SlurmAccountingDBSecurityGroup:
     Description: (Optional) Slurm Accounting DB Security Group.
-    Type: AWS::EC2::SecurityGroup::Id
+    Type: String
   MungeKeySecretArn:
     Description: (Optional) Munge Key Secret ARN.  If left blank a munge key will be created.
     Type: String
@@ -152,6 +160,7 @@ Conditions:
   UseHTTP: !Equals [!Ref 'WebsiteDomainName', '']
   UseSlurmAccountingDB: !Not [!Equals [!Ref 'SlurmAccountingDBSecret', '']]
   CreateMungeKey: !Equals [!Ref 'MungeKeySecretArn', '']
+  HasPCSClusterSecurityGroup: !Not [!Equals [!Ref 'PCSClusterSecurityGroup', '']]
 
 #######################
 #     Reesources      #
@@ -650,6 +659,10 @@ Resources:
         SecurityGroupIds:
           - !Ref PortalSecurityGroup
           - !Ref EfsClientSecurityGroup
+          - !If 
+            - HasPCSClusterSecurityGroup
+            - !Ref PCSClusterSecurityGroup
+            - !Ref AWS::NoValue
         Monitoring:
           Enabled: true
         UserData:
@@ -1157,6 +1170,7 @@ Resources:
             Resource:
               - !Ref OpenOnDemandSecrets
               - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecret, !Ref AWS::NoValue ]
+              - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecretPassword, !Ref AWS::NoValue ]
               - !Ref ADAdministratorSecret
               - !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref AWS::NoValue ]
           - Effect: Allow
@@ -1240,6 +1254,9 @@ Outputs:
   SlurmAccountingDBSecret:
     Description: DB Secret ARN
     Value: !Ref SlurmAccountingDBSecret
+  SlurmAccountingDBSecretPassword:
+    Description: (Optional) Slurm Accounting DB Secret Password.
+    Value: !Ref SlurmAccountingDBSecretPassword
   LDAPNLBEndPoint:
     Description: LDAP NLB End Point
     Value: !Ref LDAPNLBEndPoint

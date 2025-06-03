@@ -10,7 +10,6 @@ set -euo pipefail
 
 echo "[-] New slurm configuration(s) detected, restarting services..."
 chown slurm:slurm -R /etc/slurm
-systemctl restart slurmd
-systemctl restart slurmctld
-systemctl restart slurmdbd
+sed -i "s/NodeName=.*$/NodeName=$(hostname -s)/" /etc/slurm/slurm.conf
+
 echo "[-] Finished"

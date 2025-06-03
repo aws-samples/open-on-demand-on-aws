@@ -64,6 +64,12 @@ Resources:
         - !Ref DatabaseSecurityGroup
       StorageEncrypted: true
 
+  AuroraMasterSecretPassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}-rds-slurm-accounting-secret-password
+      SecretString: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:password}}'
+
   AuroraDBPrimaryInstance:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -85,6 +91,9 @@ Outputs:
   DBSecretId:
     Description: Slurm Accounting Secret ARN
     Value: !Ref AuroraMasterSecret
+  DBSecretPassword:
+    Description: Slurm Accounting Secret Password
+    Value: !Ref AuroraMasterSecretPassword
   DBSecurityGroup:
     Description: Slurm Accounting DB Security Group
     Value: !Ref DatabaseSecurityGroup
