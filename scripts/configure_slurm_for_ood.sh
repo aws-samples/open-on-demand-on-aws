@@ -8,8 +8,8 @@ display_help() {
     echo "  --ood-stack <stack-name>        Name of the ood stack (required)"
     echo "  --cluster-type <type>           Type of cluster (pcs, pcluster) (required)"
     echo "  --cluster-name <cluster-name>   Name of the cluster (required)"
-    echo "  --cluster-id <cluster-id>       Name of the PCS cluster (optional)"
-    echo "  --pcluster-stack <stack-name>   Name of the pcluster stack (optional)"
+    echo "  --cluster-id <cluster-id>       Name of the PCS cluster (required if cluster-type=pcs)"
+    echo "  --pcluster-stack <stack-name>   Name of the pcluster stack (required if cluster-type=pcluster)"
     echo "  --region <region>               AWS region (optional)"
     echo "  --help                          Display this help message"
     echo
@@ -107,6 +107,7 @@ echo "[-] Auth: $AUTH"
 echo "[-] Cluster Config Bucket: $ClusterConfigBucket"
 
 cat << EOF > slurm.conf
+SlurmUser=slurm
 SlurmctldHost=$slurm_ip
 SlurmctldPort=$slurm_port
 ClusterName=$CLUSTER_NAME

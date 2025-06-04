@@ -59,6 +59,7 @@ AccountingStorageHost=$(hostname -s)
 AccountingStoragePort=6819
 
 cat << EOF > /tmp/ood-slurm.conf
+SlurmUser=slurm
 SlurmctldHost=$SlurmctldHost
 ClusterName=$ClusterName
 AuthType=auth/munge
