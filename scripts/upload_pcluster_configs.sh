@@ -9,8 +9,10 @@ scripts=(
     "pcluster_worker_node_desktop.sh"
     "configure_login_nodes.sh"
     "configure_pam_slurm_adopt.sh"
-    "configure_slurm_for_ood.sh"
-    "configure_sackd.sh"
+    "configure_ood_for_pcs.sh"
+    "configure_slurm.sh"
+    "s3_script_runner.sh"
+    "deploy_pcs.sh"
 )
 
 # Upload each script to S3

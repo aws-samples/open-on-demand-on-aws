@@ -153,3 +153,7 @@ Outputs:
   LDAPNLBEndPoint:
     Description: LDAP NLB End Point
     Value: !GetAtt OODInfra.Outputs.LDAPNLBEndPoint
+  HPCClusterSecurityGroup:
+    Description: Cluster Security Group
+    Value: !GetAtt OODInfra.Outputs.HPCClusterSecurityGroup
+

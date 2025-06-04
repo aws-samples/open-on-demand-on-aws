@@ -516,6 +516,15 @@ Resources:
         - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
         - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
         - !Ref OODInstanceManagedPolicy
+      Policies:
+        - PolicyName: PCSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - pcs:GetCluster
+                Resource: !Sub arn:${AWS::Partition}:pcs:${AWS::Region}:${AWS::AccountId}:cluster/*
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName} - OpenOnDemand IAM Role'
@@ -1260,6 +1269,9 @@ Outputs:
   LDAPNLBEndPoint:
     Description: LDAP NLB End Point
     Value: !Ref LDAPNLBEndPoint
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
   PrivateSubnets:
     Description: Private Subnets
     Value: !Join [",", !Ref PrivateSubnets]

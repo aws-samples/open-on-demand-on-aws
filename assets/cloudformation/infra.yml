@@ -495,10 +495,42 @@ Resources:
         - Id: !Select [0, !GetAtt ActiveDirectory.DnsIpAddresses]
         - Id: !Select [1, !GetAtt ActiveDirectory.DnsIpAddresses]
 
+  ClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Supports communications between AWS PCS controller, compute nodes, and client nodes
+      VpcId: !Ref VPC
+      GroupName: !Sub 'cluster-${AWS::StackName}'
+  
+  ClusterAllowAllInboundFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ClusterSecurityGroup
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref ClusterSecurityGroup
+  
+  ClusterAllowAllOutboundToSelf:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ClusterSecurityGroup
+      IpProtocol:  '-1'
+      DestinationSecurityGroupId: !Ref ClusterSecurityGroup
+
+  # This allows all outbound comms, which enables HTTPS calls and connections to networked storage
+  ClusterAllowAllOutboundToWorld:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ClusterSecurityGroup
+      IpProtocol: '-1'
+      CidrIp: 0.0.0.0/0
+
 Outputs:
   VPCId:
     Description: VPC ID
     Value: !Ref VPC
+  HPCClusterSecurityGroup:
+    Description: Cluster Security Group
+    Value: !Ref ClusterSecurityGroup
   PrivateSubnets:
     Description: Private Subnet IDs
     Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
