@@ -1,0 +1,792 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+#
+# Referenced from https://github.com/aws-samples/aws-hpc-recipes/blob/main/recipes/pcs/getting_started/assets/cluster.yaml
+# 
+
+### Stack metadata
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Networking Configuration
+        Parameters:
+          - VPC
+          - PrivateSubnet
+          - PublicSubnet
+      - Label:
+          default: Storage Configuration
+        Parameters:
+          - EFSFileSystemId
+          - EfsFilesystemSecurityGroupId
+          - HostMountPoint
+      - Label:
+          default: PCS Cluster configuration
+        Parameters:
+          - ClusterName
+          - HPCClusterSecurityGroupId
+          - SlurmVersion
+      - Label:
+          default: Active Directory
+        Parameters:
+          - BindPasswordSecretArn
+          - DomainName
+          - TopLevelDomain
+          - BindDN
+          - LDAPSearchBase
+          - LDAPUri
+      - Label:
+          default: PCS ComputeNodeGroups configuration
+        Parameters:
+          - NodeArchitecture
+          - ClusterConfigBucket
+
+Parameters:
+  VPC:
+    Description: VPC for PCS cluster
+    Type: AWS::EC2::VPC::Id
+    ConstraintDescription: must be a valid VPC Id
+  PrivateSubnet:
+    Description: Private subnet
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet:
+    Description: Public subnet
+    Type: AWS::EC2::Subnet::Id
+  ClusterName:
+    Description: Name of the PCS cluster
+    Type: String
+  HPCClusterSecurityGroupId:
+    Description: Security group for PCS cluster controller and nodes.
+    Type: AWS::EC2::SecurityGroup::Id
+  EFSFileSystemId:
+    Description: EFS file system ID
+    Type: String
+  EfsFilesystemSecurityGroupId:
+    Description: Security group for EFS filesystem. Choose VPC default if filesysten was created using EFS console quick-start defaults.
+    Type: AWS::EC2::SecurityGroup::Id
+  NodeArchitecture:
+    Type: String
+    Default: x86
+    AllowedValues:
+      - x86
+      - Graviton
+    Description: Processor architecture for the login and compute node instances
+  SlurmVersion:
+    Type: String
+    Default: 24.11
+    Description: Version of Slurm to use
+    AllowedValues:
+         - 24.11
+  DomainName:
+    Type: String
+    Description: Domain name
+    Default: hpclab
+  TopLevelDomain:
+    Type: String
+    Description: Top level domain
+    Default: local
+  BindDN:
+    Type: String
+    Description: Bind DN for the directory
+    Default: CN=Admin,OU=Users,OU=hpclab,DC=hpclab,DC=local
+  LDAPSearchBase:
+    Type: String
+    Description: LDAP Search Base
+    Default: DC=hpclab,DC=local
+  HostMountPoint:
+    Type: String
+    Description: Mount path on the host
+    Default: "/shared"
+  ClusterConfigBucket:
+    Type: String
+    Description: S3 Bucket where Cluster Configuration items are stored
+  LDAPUri:
+    Description: LDAP URI for Managed AD
+    Type: String
+  BindPasswordSecretArn:
+    Description: BIND Password Secret ARN for Admin user in Managed AD
+    Type: String
+    AllowedPattern: '^arn:aws:secretsmanager:[a-z0-9-:]+:([0-9]{12}):secret:[a-zA-Z0-9-_]+$'
+  AccountingPolicyEnforcement:
+    Description: Specify which Slurm accounting policies to enforce
+    Type: String
+    Default: none
+    AllowedValues:
+      - none
+      - 'associations,limits,safe'
+
+Mappings:
+  Architecture:
+    AmiArchParameter:
+      Graviton: arm64
+      x86: x86_64
+    LoginNodeInstances:
+      Graviton: c7g.xlarge
+      x86: c6i.xlarge
+    ComputeNodeInstances:
+      Graviton: c7g.xlarge
+      x86: c6in.xlarge
+
+Conditions:
+  SetAccountingPolicy: !Not [!Equals [!Ref AccountingPolicyEnforcement, 'none']]
+
+Resources:
+  # Cluster
+  PCSCluster:
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - E3002  
+    Type: AWS::PCS::Cluster
+    Properties:
+      Name: !Ref ClusterName
+      Size: SMALL
+      Scheduler:
+        Type: SLURM
+        Version: !Ref SlurmVersion
+      Networking:
+        SubnetIds: 
+          - !Ref PrivateSubnet
+        SecurityGroupIds: 
+          - !Ref HPCClusterSecurityGroupId
+      SlurmConfiguration:
+        Accounting:
+          Mode: STANDARD
+          DefaultPurgeTimeInDays: 30
+        SlurmCustomSettings: !If 
+          - SetAccountingPolicy
+          - - ParameterName: AccountingStorageEnforce
+              ParameterValue: !Ref AccountingPolicyEnforcement
+          - []
+
+  PcsInstanceIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "AWSPCS-MinimalRole-role"
+      Description: "AWS IAM role for PCS node group instances"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+        - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - pcs:RegisterComputeNodeGroupInstance
+                Effect: Allow
+                Resource: "*"
+          PolicyName: PcsRegisterInstancePolicy
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - secretsmanager:GetSecretValue
+                Effect: Allow
+                Resource: !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ADAdministratorSecret*"
+              - Action:
+                  - s3:PutObject
+                Effect: Allow
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${ClusterConfigBucket}/*"
+          PolicyName: OODPolicy
+
+  PcsInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref PcsInstanceIamRole
+      InstanceProfileName: !Sub "AWSPCS-MinimalRole"
+
+  #
+  # Referenced from https://github.com/aws-samples/aws-hpc-recipes/blob/main/recipes/pcs/getting_started/assets/pcs-lt-efs.yaml
+  #
+  PCSLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub 'launch-template-${AWS::StackName}'
+      LaunchTemplateData:
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: HPCRecipes
+                Value: "true"
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 4
+          HttpTokens: required
+        SecurityGroupIds:
+          - !Ref EfsFilesystemSecurityGroupId
+          - !Ref HPCClusterSecurityGroupId
+        UserData:
+          Fn::Base64: !Sub |
+            MIME-Version: 1.0
+            Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
+
+            --==MYBOUNDARY==
+            Content-Type: text/cloud-config; charset="us-ascii"
+            MIME-Version: 1.0
+
+            packages:
+            - amazon-efs-utils
+            
+            runcmd:
+            - mkdir -p ${HostMountPoint}
+            - echo "${EFSFileSystemId}:/ ${HostMountPoint} efs tls,_netdev" >> /etc/fstab
+            - mount -a -t efs defaults
+            - if [ "enabled" == "$(sestatus | awk '/^SELinux status:/{print $3}')" ]; then setsebool -P use_nfs_home_dirs 1; fi
+            - chmod a+rwx ${HostMountPoint}
+
+            --==MYBOUNDARY==
+
+  PCSLoginNodeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub 'launch-template-login-${AWS::StackName}'
+      LaunchTemplateData:
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: HPCRecipes
+                Value: "true"
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 4
+          HttpTokens: required
+        SecurityGroupIds:
+          - !Ref EfsFilesystemSecurityGroupId
+          - !Ref HPCClusterSecurityGroupId
+        UserData:
+          Fn::Base64: !Sub
+            - |
+              MIME-Version: 1.0
+              Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
+
+              --==MYBOUNDARY==
+              Content-Type: text/cloud-config; charset="us-ascii"
+              MIME-Version: 1.0
+
+              packages:
+              - amazon-efs-utils
+              
+              runcmd:
+              - mkdir -p ${HostMountPoint}
+              - echo "${EFSFileSystemId}:/ ${HostMountPoint} efs tls,_netdev" >> /etc/fstab
+              - mount -a -t efs defaults
+              - if [ "enabled" == "$(sestatus | awk '/^SELinux status:/{print $3}')" ]; then setsebool -P use_nfs_home_dirs 1; fi
+              - chmod a+rwx ${HostMountPoint}
+
+              --==MYBOUNDARY==
+              Content-Type: text/x-shellscript; charset="us-ascii"
+              MIME-Version: 1.0
+              
+              #!/bin/bash
+              yum install -yq sssd sssd-tools sssd-ldap oddjob-mkhomedir authselect jq
+              
+              # Enable home directory creation
+              authselect select sssd with-mkhomedir --force
+              systemctl enable --now oddjobd.service
+
+              echo "Installing and configuring SSSD" > /var/log/user-data.log
+              # Install and configure SSSD
+
+              mkdir -p /etc/sssd
+
+              cat > /etc/sssd/sssd.conf <<EOF
+              [domain/${DOMAIN_NAME}]
+              cache_credentials = True
+              debug_level = 4
+              default_shell = /bin/bash
+              fallback_homedir = /shared/home/%u
+              id_provider = ldap
+              ldap_default_authtok = $(aws secretsmanager get-secret-value --secret-id ${BindPasswordSecretArn} --query SecretString --output text)
+              ldap_default_bind_dn = ${BIND_DN}
+              ldap_id_mapping = True
+              ldap_referrals = False
+              ldap_schema = AD
+              ldap_search_base = ${LDAP_SEARCH_BASE}
+              ldap_tls_reqcert = allow
+              ldap_uri = ldap://$LDAP_URI
+              ldap_auth_disable_tls_never_use_in_production = true
+              use_fully_qualified_names = False
+
+              [domain/local]
+              id_provider = files
+              enumerate = True
+
+              [sssd]
+              debug_level = 4
+              config_file_version = 2
+              services = nss, pam, ssh
+              domains = ${DOMAIN_NAME}, local
+              full_name_format = %1\$s
+
+              [nss]
+              debug_level = 4
+              filter_users = nobody,root
+              filter_groups = nobody,root
+
+              [pam]
+              debug_level = 4
+              offline_credentials_expiration = 7
+              EOF
+
+              # Set correct permissions
+              sudo chmod 600 /etc/sssd/sssd.conf
+              sudo systemctl enable sssd
+              sudo systemctl start sssd
+
+              echo "Creating cluster configuration file for OOD" >> /var/log/user-data.log
+              # Create a cluster configuration file for OOD
+              cat << EOF > $CLUSTER_NAME.yml
+              ---
+              v2:
+                metadata:
+                  title: "$CLUSTER_NAME"
+                  hidden: false
+                login:
+                  host: "$(hostname -s)"
+                job:
+                  adapter: "slurm"
+                  cluster: "$CLUSTER_NAME"
+                  bin: "/bin"
+                  bin_overrides:
+                    sbatch: "/etc/ood/config/bin_overrides.py"
+              EOF
+
+              echo "Copying cluster configuration file to the OOD config bucket" >> /var/log/user-data.log
+              # Copy the cluster configuration file to the OOD config bucket
+              aws s3 cp $CLUSTER_NAME.yml s3://${ClusterConfigBucket}/clusters/
+              
+              --==MYBOUNDARY==
+            - BIND_DN: '${BindDN}'
+              BIND_PASSWORD: '${BindPasswordSecretArn}'
+              DOMAIN_NAME: '${DomainName}.${TopLevelDomain}'
+              LDAP_SEARCH_BASE: '${LDAPSearchBase}'
+              LDAP_URI: !Sub '${LDAPUri}'
+              CLUSTER_NAME: !Ref ClusterName
+              ClusterConfigBucket: !Sub '${ClusterConfigBucket}'
+
+  PCSDesktopNodeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub 'launch-template-desktop-${AWS::StackName}'
+      LaunchTemplateData:
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: HPCRecipes
+                Value: "true"
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 4
+          HttpTokens: required
+        SecurityGroupIds:
+          - !Ref EfsFilesystemSecurityGroupId
+          - !Ref HPCClusterSecurityGroupId
+        UserData:
+          Fn::Base64: !Sub
+            - |
+              MIME-Version: 1.0
+              Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
+
+              --==MYBOUNDARY==
+              Content-Type: text/cloud-config; charset="us-ascii"
+              MIME-Version: 1.0
+
+              packages:
+              - amazon-efs-utils
+              
+              runcmd:
+              - mkdir -p ${HostMountPoint}
+              - echo "${EFSFileSystemId}:/ ${HostMountPoint} efs tls,_netdev" >> /etc/fstab
+              - mount -a -t efs defaults
+              - if [ "enabled" == "$(sestatus | awk '/^SELinux status:/{print $3}')" ]; then setsebool -P use_nfs_home_dirs 1; fi
+              - chmod a+rwx ${HostMountPoint}
+
+              --==MYBOUNDARY==
+              Content-Type: text/x-shellscript; charset="us-ascii"
+              MIME-Version: 1.0
+              
+              #!/bin/bash
+              #!/bin/bash
+              yum install -yq sssd sssd-tools sssd-ldap oddjob-mkhomedir authselect jq
+              
+              # Enable home directory creation
+              authselect select sssd with-mkhomedir --force
+              systemctl enable --now oddjobd.service
+
+              echo "Installing and configuring SSSD" > /var/log/user-data.log
+              # Install and configure SSSD
+
+              mkdir -p /etc/sssd
+
+              cat > /etc/sssd/sssd.conf <<EOF
+              [domain/${DOMAIN_NAME}]
+              cache_credentials = True
+              debug_level = 4
+              default_shell = /bin/bash
+              fallback_homedir = /shared/home/%u
+              id_provider = ldap
+              ldap_default_authtok = $(aws secretsmanager get-secret-value --secret-id ${BindPasswordSecretArn} --query SecretString --output text)
+              ldap_default_bind_dn = ${BIND_DN}
+              ldap_id_mapping = True
+              ldap_referrals = False
+              ldap_schema = AD
+              ldap_search_base = ${LDAP_SEARCH_BASE}
+              ldap_tls_reqcert = allow
+              ldap_uri = ldap://$LDAP_URI
+              ldap_auth_disable_tls_never_use_in_production = true
+              use_fully_qualified_names = False
+
+              [domain/local]
+              id_provider = files
+              enumerate = True
+
+              [sssd]
+              debug_level = 4
+              config_file_version = 2
+              services = nss, pam, ssh
+              domains = ${DOMAIN_NAME}, local
+              full_name_format = %1\$s
+
+              [nss]
+              debug_level = 4
+              filter_users = nobody,root
+              filter_groups = nobody,root
+
+              [pam]
+              debug_level = 4
+              offline_credentials_expiration = 7
+              EOF
+
+              # Set correct permissions
+              sudo chmod 600 /etc/sssd/sssd.conf
+              sudo systemctl enable sssd
+              sudo systemctl start sssd
+
+              yum -y -q install jq
+              # Add spack-users group
+              groupadd spack-users -g 4000
+
+              ## install remote desktop packages
+              ## uncomment the following if you want to run interacctive remote desktop session in OOD
+              ##
+              echo "Installing nmap-ncat" >> /var/log/configure_desktop.log
+              yum install nmap-ncat -y
+
+              cat > /etc/yum.repos.d/TurboVNC.repo <<  'EOF'
+              [TurboVNC]
+              name=TurboVNC official RPMs
+              baseurl=https://sourceforge.net/projects/turbovnc/files
+              gpgcheck=1
+              gpgkey=https://sourceforge.net/projects/turbovnc/files/VGL-GPG-KEY
+                    https://sourceforge.net/projects/turbovnc/files/VGL-GPG-KEY-1024
+              enabled=1
+              EOF
+
+              echo "Installing turbovnc" >> /var/log/configure_desktop.log
+              yum install turbovnc -y
+
+              amazon-linux-extras install python3.8
+              ln -sf /usr/bin/python3.8 /usr/bin/python3
+
+              echo "Installing pip packages" >> /var/log/configure_desktop.log
+              pip3 install --no-input websockify
+              pip3 install --no-input jupyter
+
+              echo "Installing mate-desktop1.x" >> /var/log/configure_desktop.log
+              amazon-linux-extras install mate-desktop1.x -y
+
+              echo "Updating bashrc" >> /var/log/configure_desktop.log
+              cat >> /etc/bashrc << 'EOF'
+              PATH=$PATH:/opt/TurboVNC/bin:/shared/software/bin
+              
+              #this is to fix the dconf permission error
+              export XDG_RUNTIME_DIR="$HOME/.cache/dconf"
+              EOF
+
+              echo "DONE" >> /var/log/configure_desktop.log
+              
+              --==MYBOUNDARY==
+            - BIND_DN: '${BindDN}'
+              BIND_PASSWORD: '${BindPasswordSecretArn}'
+              DOMAIN_NAME: '${DomainName}.${TopLevelDomain}'
+              LDAP_SEARCH_BASE: '${LDAPSearchBase}'
+              LDAP_URI: !Sub '${LDAPUri}'
+              CLUSTER_NAME: !Ref ClusterName
+              ClusterConfigBucket: !Sub '${ClusterConfigBucket}'
+
+  # Compute Node groups - Login Nodes
+  PCSNodeGroupLogin:
+    Type: AWS::PCS::ComputeNodeGroup
+    Properties:
+      ClusterId: !GetAtt [PCSCluster, Id]
+      Name: login
+      ScalingConfiguration:
+        MinInstanceCount: 1
+        MaxInstanceCount: 1
+      IamInstanceProfileArn: !GetAtt [PcsInstanceProfile, Arn]
+      CustomLaunchTemplate:
+        TemplateId: !Ref PCSLoginNodeLaunchTemplate
+        Version: !GetAtt [PCSLoginNodeLaunchTemplate, LatestVersionNumber]
+      SubnetIds: 
+        - !Ref PrivateSubnet
+      AmiId: !GetAtt [PcsSampleAmi, AmiId]
+      InstanceConfigs:
+        - InstanceType: !FindInMap [ Architecture, LoginNodeInstances, !Ref NodeArchitecture ]
+
+  # Compute Node groups - Compute Nodes
+  PCSNodeGroupCompute:
+    Type: AWS::PCS::ComputeNodeGroup
+    Properties:
+      ClusterId: !GetAtt [PCSCluster, Id]
+      Name: compute-1
+      ScalingConfiguration:
+        MinInstanceCount: 0
+        MaxInstanceCount: 4
+      IamInstanceProfileArn: !GetAtt [PcsInstanceProfile, Arn]
+      CustomLaunchTemplate:
+        TemplateId: !Ref PCSLaunchTemplate
+        Version: !GetAtt [PCSLaunchTemplate, LatestVersionNumber]
+      SubnetIds: 
+        - !Ref PrivateSubnet
+      AmiId: !GetAtt [PcsSampleAmi, AmiId]
+      InstanceConfigs:
+        - InstanceType: !FindInMap [ Architecture, ComputeNodeInstances, !Ref NodeArchitecture ]
+
+  # Compute Node groups - Login Nodes
+  PCSNodeGroupDesktop:
+    Type: AWS::PCS::ComputeNodeGroup
+    Properties:
+      ClusterId: !GetAtt [PCSCluster, Id]
+      Name: desktop
+      ScalingConfiguration:
+        MinInstanceCount: 1
+        MaxInstanceCount: 1
+      IamInstanceProfileArn: !GetAtt [PcsInstanceProfile, Arn]
+      CustomLaunchTemplate:
+        TemplateId: !Ref PCSDesktopNodeLaunchTemplate
+        Version: !GetAtt [PCSDesktopNodeLaunchTemplate, LatestVersionNumber]
+      SubnetIds: 
+        - !Ref PrivateSubnet
+      AmiId: !GetAtt [PcsSampleAmi, AmiId]
+      InstanceConfigs:
+        - InstanceType: !FindInMap [ Architecture, ComputeNodeInstances, !Ref NodeArchitecture ]
+
+  PCSQueueCompute:
+    Type: AWS::PCS::Queue
+    Properties:
+      ClusterId: !GetAtt [PCSCluster, Id]
+      Name: c6in
+      ComputeNodeGroupConfigurations:
+        - ComputeNodeGroupId: !GetAtt [PCSNodeGroupCompute, Id]
+
+  PCSQueueDesktop:
+    Type: AWS::PCS::Queue
+    Properties:
+      ClusterId: !GetAtt [PCSCluster, Id]
+      Name: desktop
+      ComputeNodeGroupConfigurations:
+        - ComputeNodeGroupId: !GetAtt [PCSNodeGroupDesktop, Id]
+
+  PcsAMILookupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: EC2DescribeImages
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeImages
+                Resource: '*'
+
+  PcsAMILookupFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt PcsAMILookupRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import urllib3
+          from botocore.exceptions import ClientError
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def construct_ami_prefix(os_name, architecture, slurm_version):
+              return f'aws-pcs-sample_ami-{os_name}-{architecture}-slurm-{slurm_version}'
+
+          def get_latest_ami(ami_name_prefix):
+              ec2_client = boto3.client('ec2')
+              filters = [{'Name': 'name','Values': [f'{ami_name_prefix}*']}]
+              response = ec2_client.describe_images(Filters=filters)
+              ami_list = response['Images']
+              sorted_ami_list = sorted(ami_list, key=lambda x: x['CreationDate'], reverse=True)
+              return sorted_ami_list[0]['ImageId'] if sorted_ami_list else None
+
+          def send_response(event, context, response_status, response_data, physical_resource_id=None):
+              response_body = {
+                  'Status': response_status,
+                  'Reason': f'See CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': physical_resource_id or context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'NoEcho': False,
+                  'Data': response_data
+              }
+
+              logger.info(f'Response body: {json.dumps(response_body)}')
+
+              http = urllib3.PoolManager()
+              try:
+                  response = http.request(
+                      'PUT',
+                      event['ResponseURL'],
+                      headers={'Content-Type': 'application/json'},
+                      body=json.dumps(response_body).encode('utf-8')
+                  )
+                  logger.info(f'Status code: {response.status}')
+              except Exception as e:
+                  logger.error(f'Failed to send response: {str(e)}')
+                  raise
+
+          def handler(event, context):
+              logger.info(f'Received event: {json.dumps(event)}')
+              
+              try:
+                  properties = event['ResourceProperties']
+                  os_name = properties.get('OperatingSystem')
+                  architecture = properties.get('Architecture')
+                  slurm_version = properties.get('SlurmVersion')
+                  
+                  # Validate required properties
+                  if not all([os_name, architecture, slurm_version]):
+                      raise ValueError('OperatingSystem, Architecture, and SlurmVersion are required in ResourceProperties')
+
+                  # Skip actual work on delete
+                  if event['RequestType'] == 'Delete':
+                      send_response(event, context, 'SUCCESS', {})
+                      return
+
+                  ami_name_prefix = construct_ami_prefix(os_name, architecture, slurm_version)
+                  logger.info(f'Looking up AMI with prefix: {ami_name_prefix}')
+                  
+                  ami_id = get_latest_ami(ami_name_prefix)
+                  if not ami_id:
+                      raise ValueError(f'No AMI found matching prefix: {ami_name_prefix}')
+
+                  response_data = {
+                      'AmiId': ami_id,
+                      'AmiPrefix': ami_name_prefix
+                  }
+                  
+                  send_response(event, context, 'SUCCESS', response_data, ami_id)
+
+              except Exception as e:
+                  logger.error(f'Exception: {str(e)}')
+                  send_response(event, context, 'FAILED', {'Error': str(e)})
+                  raise
+      Timeout: 30
+      MemorySize: 128
+
+  # Example of using the custom resource to look up an AMI
+  PcsSampleAmi:
+    Type: Custom::AMILookup
+    Properties:
+      ServiceToken: !GetAtt PcsAMILookupFn.Arn
+      OperatingSystem: 'amzn2'
+      Architecture: !FindInMap [ Architecture, AmiArchParameter, !Ref NodeArchitecture ]
+      SlurmVersion: !Ref SlurmVersion
+
+  S3ScriptRunner:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: !Sub ${AWS::StackName}-S3ScriptRunner
+      DocumentType: Command
+      Content:
+        schemaVersion: '2.2'
+        description: 'Downloads a file from S3 and runs it on an EC2 instance'
+        parameters:
+          bucketName:
+            type: String
+            description: 'S3 bucket name containing the script'
+          scriptKey:
+            type: String
+            description: 'S3 key of the script to download and run'
+          scriptArgs:
+            type: String
+            description: 'Arguments to pass to the script'
+            default: ''
+        mainSteps:
+          - name: downloadAndRunScript
+            action: aws:runShellScript
+            inputs:
+              runCommand:
+                - |
+                  #!/bin/bash
+                  set -e
+                  
+                  # Download script from S3
+                  aws s3 cp s3://{{ bucketName }}/{{ scriptKey }} /tmp/script.sh
+                  
+                  # Make script executable
+                  chmod +x /tmp/script.sh
+                  
+                  # Run script with arguments
+                  /tmp/script.sh {{ scriptArgs }}
+                  
+                  # Clean up
+                  rm -f /tmp/script.sh
+
+Outputs:
+  ClusterId:
+    Description: The Id of the PCS cluster
+    Value: !GetAtt [ PCSCluster, Id ]
+  Ec2ConsoleUrl:
+    Description: URL to access instance(s) in the login node group
+    Value: !Sub
+      - https://${ConsoleDomain}/ec2/home?region=${AWS::Region}#Instances:instanceState=running;tag:aws:pcs:compute-node-group-id=${NodeGroupLoginId}
+      - { ConsoleDomain: !Sub '${AWS::Region}.console.aws.amazon.com',
+          NodeGroupLoginId: !GetAtt [ PCSNodeGroupLogin, Id ] 
+        }
+    Export:
+      Name: !Sub ${AWS::StackName}-Ec2ConsoleUrl
+  PcsConsoleUrl:
+    Description: URL to access the cluster in the PCS console
+    Value: !Sub
+      - https://${ConsoleDomain}/pcs/home?region=${AWS::Region}#/clusters/${ClusterId}
+      - { ConsoleDomain: !Sub '${AWS::Region}.console.aws.amazon.com',
+          ClusterId: !GetAtt [ PCSCluster, Id ]
+        }
+    Export:
+      Name: !Sub ${AWS::StackName}-PcsConsoleUrl
+  S3ScriptRunnerDocumentName:
+    Description: Name of the S3ScriptRunner document
+    Value: !Sub ${AWS::StackName}-S3ScriptRunner
+    Export:
+      Name: !Sub ${AWS::StackName}-S3ScriptRunnerDocumentName

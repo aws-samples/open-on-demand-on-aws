@@ -22,18 +22,6 @@ cat << EOF > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
                                                 "retention_in_days": ${RETENTION_DAYS}
                                         },
                                         {
-                                                "file_path": "/var/log/slurm/slurmdbd.log",
-                                                "log_group_name": "${STACK_NAME}",
-                                                "log_stream_name": "{instance_id}/slurmdbd.log",
-                                                "retention_in_days": ${RETENTION_DAYS}
-                                        },
-                                        {
-                                                "file_path": "/var/log/slurmctld.log",
-                                                "log_group_name": "${STACK_NAME}",
-                                                "log_stream_name": "{instance_id}/slurmctld.log",
-                                                "retention_in_days": ${RETENTION_DAYS}
-                                        },
-                                        {
                                                 "file_path": "/var/log/sbatch.log",
                                                 "log_group_name": "${STACK_NAME}",
                                                 "log_stream_name": "{instance_id}/sbatch.log",

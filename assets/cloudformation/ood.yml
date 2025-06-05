@@ -21,6 +21,7 @@ Metadata:
           - VPC
           - PublicSubnets
           - PrivateSubnets
+          - PCSClusterSecurityGroup
       - Label:
           default: Active Directory
         Parameters:
@@ -36,15 +37,17 @@ Metadata:
           - RetainEFSFileSystem
           - LoadBalancerLogBucket
       - Label:
-          default: Slurm Accounting Database
+          default: Slurm Configurations
         Parameters:
           - SlurmAccountingDBSecret
           - SlurmAccountingDBSecurityGroup
+          - SlurmAccountingDBSecretPassword
+          - MungeKeySecretArn
+          - SlurmVersion
       - Label:
           default: Open OnDemand
         Parameters:
           - Branch
-          - SlurmVersion
     ParameterLabels:
       PortalAllowedIPCIDR:
         default: Portal Allowed IP CIDR
@@ -94,6 +97,9 @@ Parameters:
   PrivateSubnets:
     Description: Private subnets
     Type: List<AWS::EC2::Subnet::Id>
+  PCSClusterSecurityGroup:
+    Description: (Optional) PCS Cluster Security Group
+    Type: String
   ADAdministratorSecret:
     Description: AD Admin Secret ARN
     Type: String
@@ -119,12 +125,17 @@ Parameters:
          - "True"
          - "False"    
   SlurmAccountingDBSecret:
-    Description: Slurm Accounting DB Secret ARN
+    Description: (Optional) Slurm Accounting DB Secret ARN.
     Type: String
-    AllowedPattern: 'arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[a-zA-Z0-9/-]*'
+  SlurmAccountingDBSecretPassword:
+    Description: (Optional) Slurm Accounting DB Secret Password.
+    Type: String
   SlurmAccountingDBSecurityGroup:
-    Description: Slurm Accounting DB Security Group
-    Type: AWS::EC2::SecurityGroup::Id
+    Description: (Optional) Slurm Accounting DB Security Group.
+    Type: String
+  MungeKeySecretArn:
+    Description: (Optional) Munge Key Secret ARN.  If left blank a munge key will be created.
+    Type: String
   Branch:
     Description: Branch of the code to deploy. Only use this when testing changes to the solution
     Default: main
@@ -147,6 +158,9 @@ Conditions:
   RetainStorage: !Equals [!Ref RetainEFSFileSystem, 'True']
   HasWebsiteDomain: !Not [!Equals [!Ref 'WebsiteDomainName', '']]
   UseHTTP: !Equals [!Ref 'WebsiteDomainName', '']
+  UseSlurmAccountingDB: !Not [!Equals [!Ref 'SlurmAccountingDBSecret', '']]
+  CreateMungeKey: !Equals [!Ref 'MungeKeySecretArn', '']
+  HasPCSClusterSecurityGroup: !Not [!Equals [!Ref 'PCSClusterSecurityGroup', '']]
 
 #######################
 #     Reesources      #
@@ -163,8 +177,17 @@ Resources:
         - HostedZoneId: !Ref HostedZoneId
           DomainName: !Ref WebsiteDomainName
 
+  #########################################################
+  # Security Groups
+  #########################################################
+
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W36
+            reason: "Allow missing description"
     Properties:
       GroupDescription: Security Group for ALB
       SecurityGroupIngress:
@@ -426,13 +449,13 @@ Resources:
             Resource:
               - !Ref ADAdministratorSecret
               - !Ref OpenOnDemandSecrets
-              - !Ref SlurmAccountingDBSecret
+              - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecret, !Ref AWS::NoValue ]
           - Effect: Allow
             Action: 
               - secretsmanager:GetSecretValue
               - secretsmanager:PutSecretValue
             Resource:
-              - !Ref MungeKeySecret
+              - !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -465,6 +488,16 @@ Resources:
             Action:
               - cloudformation:DescribeStacks
             Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+          - Effect: Allow
+            Sid: AllowAccessToPCSSecret
+            Action: 
+              - secretsmanager:GetSecretValue
+            Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:pcs!*
+          - Effect: Allow
+            Sid: AllowAccessToPCS
+            Action: 
+              - pcs:GetCluster
+            Resource: !Sub arn:${AWS::Partition}:pcs:${AWS::Region}:${AWS::AccountId}:cluster/*
 
   OODInstanceRole:
     Type: AWS::IAM::Role
@@ -483,6 +516,15 @@ Resources:
         - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
         - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
         - !Ref OODInstanceManagedPolicy
+      Policies:
+        - PolicyName: PCSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - pcs:GetCluster
+                Resource: !Sub arn:${AWS::Partition}:pcs:${AWS::Region}:${AWS::AccountId}:cluster/*
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName} - OpenOnDemand IAM Role'
@@ -494,27 +536,9 @@ Resources:
       Roles:
         - !Ref OODInstanceRole
 
-  ALB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      IpAddressType: ipv4
-      Scheme: internet-facing
-      SecurityGroups:
-        - !Ref ALBSecurityGroup
-      Subnets: !Ref PublicSubnets
-      Type: application
-      LoadBalancerAttributes:
-        - Key: access_logs.s3.enabled
-          Value: true
-        - Key: access_logs.s3.bucket
-          Value: !Ref LoadBalancerLogBucket
-        - Key: access_logs.s3.prefix
-          Value: portal-alb
-        - Key: idle_timeout.timeout_seconds # Required to address issue with OOD SSH timeout
-          Value: 600
-
   # Add a new secrets manager entry
   MungeKeySecret:
+    Condition: CreateMungeKey
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Munge Key for Open OnDemand
@@ -573,6 +597,7 @@ Resources:
                   export OOD_HTTP="${OOD_HTTP}"
                 - EFS_FileSystemId: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
                   WebsiteDomainName: !If [ HasWebsiteDomain, !Ref WebsiteDomainName, !GetAtt ALB.DNSName ]
+                  MungeKeySecret: !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
                   OOD_HTTP: !If [ UseHTTP, "true", "false" ]
               mode: "000744"
               owner: "root"
@@ -642,6 +667,11 @@ Resources:
               VolumeType: gp3
         SecurityGroupIds:
           - !Ref PortalSecurityGroup
+          - !Ref EfsClientSecurityGroup
+          - !If 
+            - HasPCSClusterSecurityGroup
+            - !Ref PCSClusterSecurityGroup
+            - !Ref AWS::NoValue
         Monitoring:
           Enabled: true
         UserData:
@@ -668,8 +698,10 @@ Resources:
             ln -s $INSTALL_PATH/cfn-send-cmd-result /opt/aws/bin/cfn-send-cmd-result
 
             # Call cfn-init script to install files and packages
-            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configset config
-
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configsets config
+            
+            # Signal the stack that the instance is ready
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource OODServerASG --region ${AWS::Region}
   OODServerASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -692,45 +724,35 @@ Resources:
         - Key: ood
           Value: !Sub webportal-${AWS::StackName}
           PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
     UpdatePolicy:
-      AutoScalingRollingUpdate: {}
+      AutoScalingRollingUpdate:
+        PauseTime: PT15M
+        WaitOnResourceSignals: true
 
-  ComputeNodeMountTargetEgress:
-    Type: AWS::EC2::SecurityGroupEgress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 2049
-      ToPort: 2049
-      Description: Allows outbound to EFS mount target
-      GroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
-      DestinationSecurityGroupId: !GetAtt MountTargetSecurityGroup.GroupId
+  #########################################################
+  # Shared File System
+  #########################################################
 
-  HeadNodeMountTargetEgress:
-    Type: AWS::EC2::SecurityGroupEgress
+  SharedFileSystem:
+    Condition: CreateEFSFileSystem
+    Type: AWS::EFS::FileSystem
+    DeletionPolicy: !If [ RetainStorage, Retain, Delete ]
+    UpdateReplacePolicy: !If [ RetainStorage, Retain, Delete ]
     Properties:
-      IpProtocol: tcp
-      FromPort: 2049
-      ToPort: 2049
-      Description: Allows outbound to EFS mount target
-      GroupId: !GetAtt HeadNodeSecurityGroup.GroupId
-      DestinationSecurityGroupId: !GetAtt MountTargetSecurityGroup.GroupId
-
-  PortalMountTargetEgress:
-    Type: AWS::EC2::SecurityGroupEgress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 2049
-      ToPort: 2049
-      Description: Allows outbound to EFS mount target
-      GroupId: !GetAtt PortalSecurityGroup.GroupId
-      DestinationSecurityGroupId: !GetAtt MountTargetSecurityGroup.GroupId
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-efs"
+      Encrypted: true
+      PerformanceMode: generalPurpose
 
   MountTargetSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      VpcId:
-        Ref: VPC
-      GroupDescription: Security group for mount target
+      VpcId: !Ref VPC
+      GroupDescription: 'Allows traffic to EFS filesystem'
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 2049
@@ -759,14 +781,63 @@ Resources:
           ToPort: 2049
           DestinationSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
 
-  SharedFileSystem:
-    Condition: CreateEFSFileSystem
-    Type: AWS::EFS::FileSystem
-    DeletionPolicy: !If [ RetainStorage, Retain, Delete ]
-    UpdateReplacePolicy: !If [ RetainStorage, Retain, Delete ]
+  # Clients join this group for access to the EFS file system
+  EfsClientSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      Encrypted: true
-      PerformanceMode: generalPurpose
+      GroupDescription: 'Clients join this group for access to EFS filesystem'
+      GroupName: !Sub '${AWS::StackName}-efs-client-security-group'
+      VpcId: !Ref VPC
+
+  MountTargetSecurityGroupInboundRule:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      IpProtocol: tcp
+      Description: Allow incoming traffic to EFS from members of security group
+      FromPort: 2049
+      ToPort: 2049
+      GroupId: !Ref MountTargetSecurityGroup
+      SourceSecurityGroupId: !Ref EfsClientSecurityGroup
+
+  EfsClientSecurityGroupOutboundRule:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      IpProtocol: tcp
+      Description: Allow outgoing traffic from members of security group to EFS
+      FromPort: 2049
+      ToPort: 2049
+      GroupId: !Ref EfsClientSecurityGroup
+      DestinationSecurityGroupId: !Ref MountTargetSecurityGroup
+
+  ComputeNodeMountTargetOutboundRule:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      Description: Allows outbound to EFS mount target
+      GroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt EfsClientSecurityGroup.GroupId
+
+  HeadNodeMountTargetOutboundRule:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      Description: Allows outbound to EFS mount target
+      GroupId: !GetAtt HeadNodeSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt EfsClientSecurityGroup.GroupId
+
+  PortalMountTargetOutboundRule:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      Description: Allows outbound to EFS mount target
+      GroupId: !GetAtt PortalSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt EfsClientSecurityGroup.GroupId
 
   MountTargetResource1:
     Type: AWS::EFS::MountTarget
@@ -783,6 +854,29 @@ Resources:
       SubnetId: !Select [1, !Ref PrivateSubnets]
       SecurityGroups:
         - !Ref MountTargetSecurityGroup
+
+  #########################################################
+  # Load Balancer
+  #########################################################
+
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets: !Ref PublicSubnets
+      Type: application
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: !Ref LoadBalancerLogBucket
+        - Key: access_logs.s3.prefix
+          Value: portal-alb
+        - Key: idle_timeout.timeout_seconds # Required to address issue with OOD SSH timeout
+          Value: 600
 
   OpenOnDemandTargetGroupHTTPS:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -898,6 +992,10 @@ Resources:
             Action:
               - ssm:SendCommand
             Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+
+  #########################################################
+  # Event Bridge Rules
+  #########################################################
 
   ClusterConfigUpload:
     Type: AWS::Events::Rule
@@ -1020,8 +1118,13 @@ Resources:
         HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
       Type: A
 
+  #########################################################
+  # Database Security Groups
+  #########################################################
+
   DatabaseSecurityGroupIngressOOD:
     Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       GroupId: !Ref SlurmAccountingDBSecurityGroup
@@ -1032,6 +1135,7 @@ Resources:
 
   DatabaseSecurityGroupIngressHeadNode:
     Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       GroupId: !Ref SlurmAccountingDBSecurityGroup
@@ -1042,6 +1146,7 @@ Resources:
 
   HeadNodeDBEgress:
     Type: AWS::EC2::SecurityGroupEgress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       FromPort: 3306
@@ -1052,6 +1157,7 @@ Resources:
 
   PortalDBEgress:
     Type: AWS::EC2::SecurityGroupEgress
+    Condition: UseSlurmAccountingDB
     Properties:
       IpProtocol: tcp
       FromPort: 3306
@@ -1072,9 +1178,10 @@ Resources:
               - secretsmanager:DescribeSecret
             Resource:
               - !Ref OpenOnDemandSecrets
-              - !Ref SlurmAccountingDBSecret
+              - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecret, !Ref AWS::NoValue ]
+              - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecretPassword, !Ref AWS::NoValue ]
               - !Ref ADAdministratorSecret
-              - !Ref MungeKeySecret
+              - !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref AWS::NoValue ]
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -1156,9 +1263,15 @@ Outputs:
   SlurmAccountingDBSecret:
     Description: DB Secret ARN
     Value: !Ref SlurmAccountingDBSecret
+  SlurmAccountingDBSecretPassword:
+    Description: (Optional) Slurm Accounting DB Secret Password.
+    Value: !Ref SlurmAccountingDBSecretPassword
   LDAPNLBEndPoint:
     Description: LDAP NLB End Point
     Value: !Ref LDAPNLBEndPoint
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
   PrivateSubnets:
     Description: Private Subnets
     Value: !Join [",", !Ref PrivateSubnets]
@@ -1167,10 +1280,16 @@ Outputs:
     Value: !Ref ADAdministratorSecret
   MungeKeySecretId:
     Description: Munge Key Secret ARN
-    Value: !Ref MungeKeySecret
+    Value: !If [ CreateMungeKey, !Ref MungeKeySecret, !Ref MungeKeySecretArn ]
   EFSMountId:
     Description: EFS Mount ID
     Value: !If [ CreateEFSFileSystem, !Ref SharedFileSystem, !Ref EFSFileSystemId ]
+  EFSFileSystemArn:
+    Description: EFS File System ARN
+    Value: !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
+  EfsClientSecurityGroup:
+    Description: EFS Client Security Group
+    Value: !Ref EfsClientSecurityGroup
   HeadNodeIAMPolicyArn:
     Description: Parallel Cluster Head Node IAM ARN
     Value: !Ref HeadNodeParallelClusterIAMPolicy

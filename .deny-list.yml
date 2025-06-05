@@ -1,0 +1,3 @@
+RulesToSuppress:
+- id: W27
+  reason: Allow port ranges on security groups

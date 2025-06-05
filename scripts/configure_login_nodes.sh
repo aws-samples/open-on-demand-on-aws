@@ -39,7 +39,6 @@ OOD_STACK=$(aws cloudformation describe-stacks --stack-name $OOD_STACK_NAME --re
 STACK_NAME=$(aws ec2 describe-instances --instance-id=$INSTANCE_ID --region $REGION --query 'Reservations[].Instances[].Tags[?Key==`parallelcluster:cluster-name`].Value' --output text)
 EFS_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
 S3_CONFIG_BUCKET=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
-MUNGEKEY_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
 LOGIN_NODE_STACK_NAME=$(aws cloudformation describe-stack-resources --stack-name $STACK_NAME  --query "StackResources[?starts_with(LogicalResourceId, 'LoginNodes') && ResourceType=='AWS::CloudFormation::Stack'][PhysicalResourceId]" --region $REGION --output text)
 LOGIN_NODE_NLB=$(aws cloudformation describe-stack-resources --stack-name $LOGIN_NODE_STACK_NAME --query "StackResources[?ResourceType=='AWS::ElasticLoadBalancingV2::LoadBalancer'][PhysicalResourceId]" --region $REGION --output text)
 LOGIN_NODE_NLB_DNS_NAME=$(aws elbv2 describe-load-balancers --load-balancer-arns $LOGIN_NODE_NLB --query "LoadBalancers[].DNSName" --region $REGION --output text)

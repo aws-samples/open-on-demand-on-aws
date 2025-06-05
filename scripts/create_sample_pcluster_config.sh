@@ -39,10 +39,20 @@ export HEAD_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.Output
 export HEAD_POLICY=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeIAMPolicyArn") | .OutputValue')
 export COMPUTE_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeSecurityGroup") | .OutputValue')
 export COMPUTE_POLICY=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ComputeNodeIAMPolicyArn") | .OutputValue')
+export EFS_CLIENT_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EfsClientSecurityGroup") | .OutputValue')
 export BUCKET_NAME=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ClusterConfigBucket") | .OutputValue')
 export LDAP_ENDPOINT=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="LDAPNLBEndPoint") | .OutputValue')
 export MUNGEKEY_SECRET_ID=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="MungeKeySecretId") | .OutputValue')
 export SHARED_FILESYSTEMID=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="EFSMountId") | .OutputValue')
+
+RDS_SECRET_ID=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="SlurmAccountingDBSecret") | .OutputValue')
+export RDS_SECRET=$(aws secretsmanager --region $REGION get-secret-value --secret-id $RDS_SECRET_ID --query SecretString --output text)
+export RDS_USER=$(echo $RDS_SECRET | jq -r ".username")
+export RDS_PASSWORD=$(echo $RDS_SECRET | jq -r ".password")
+export RDS_ENDPOINT=$(echo $RDS_SECRET | jq -r ".host")
+export RDS_PORT=$(echo $RDS_SECRET | jq -r ".port")
+export RDS_DBNAME=$(echo $RDS_SECRET | jq -r ".dbname")
+export SLURM_ACCOUNTING_DB_SECRET_ARN=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="SlurmAccountingDBSecretPassword") | .OutputValue')
 
 cat << EOF 
 [+] Using the following values to generate $PCLUSTER_FILENAME
@@ -79,6 +89,7 @@ HeadNode:
     SubnetId: ${subnets[0]}
     AdditionalSecurityGroups:
       - $HEAD_SG
+      - $EFS_CLIENT_SG
   LocalStorage:
     RootVolume:
       VolumeType: gp3
@@ -99,6 +110,11 @@ Scheduling:
   Scheduler: slurm
   SlurmSettings:
     MungeKeySecretArn: $MUNGEKEY_SECRET_ID
+    Database:
+      Uri: $RDS_ENDPOINT:$RDS_PORT
+      UserName: $RDS_USER
+      PasswordSecretArn: $SLURM_ACCOUNTING_DB_SECRET_ARN
+      DatabaseName: $RDS_DBNAME
   SlurmQueues:
     - Name: general
       AllocationStrategy: lowest-price
@@ -120,6 +136,7 @@ done
 cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
+          - $EFS_CLIENT_SG
       ComputeSettings:
         LocalStorage:
           RootVolume:
@@ -157,6 +174,7 @@ AD_OU=$(echo $AD_DOMAIN | sed 's/DC=\([^,]*\).*/\1/')
 cat << EOF >> $PCLUSTER_FILENAME
         AdditionalSecurityGroups:
           - $COMPUTE_SG
+          - $EFS_CLIENT_SG
       ComputeSettings:
         LocalStorage:
           RootVolume:
@@ -182,6 +200,7 @@ LoginNodes:
           - ${subnets[0]}
         AdditionalSecurityGroups:
           - $COMPUTE_SG
+          - $EFS_CLIENT_SG
       CustomActions:
         OnNodeConfigured:
           Script: >-

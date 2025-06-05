@@ -356,6 +356,9 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::cloudformation-waitcondition-${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*
               - !Sub arn:${AWS::Partition}:s3:::fsx-lustre-client-repo/*
+              - !Sub arn:${AWS::Partition}:s3:::ec2-linux-nvidia-drivers/*
+              - !Sub arn:${AWS::Partition}:s3:::aws-pcs-repo-${AWS::Region}/*
+              - !Sub arn:${AWS::Partition}:s3:::aws-hpc-recipes/*
           - Effect: Allow # Allows access to buckets required for systems manager
             Principal: "*"
             Action: "s3:GetObject"
@@ -370,6 +373,8 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::aws-patchmanager-macos-${AWS::Region}/*
               - !Sub arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*
               - !Sub arn:${AWS::Partition}:s3:::fsx-lustre-client-repo/*
+              - !Sub arn:${AWS::Partition}:s3:::ec2-linux-nvidia-drivers/*
+              - !Sub arn:${AWS::Partition}:s3:::aws-pcs-repo-${AWS::Region}/*
 
   ADAdministratorSecret:
     Type: AWS::SecretsManager::Secret
@@ -490,10 +495,42 @@ Resources:
         - Id: !Select [0, !GetAtt ActiveDirectory.DnsIpAddresses]
         - Id: !Select [1, !GetAtt ActiveDirectory.DnsIpAddresses]
 
+  ClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Supports communications between AWS PCS controller, compute nodes, and client nodes
+      VpcId: !Ref VPC
+      GroupName: !Sub 'cluster-${AWS::StackName}'
+  
+  ClusterAllowAllInboundFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ClusterSecurityGroup
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref ClusterSecurityGroup
+  
+  ClusterAllowAllOutboundToSelf:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ClusterSecurityGroup
+      IpProtocol:  '-1'
+      DestinationSecurityGroupId: !Ref ClusterSecurityGroup
+
+  # This allows all outbound comms, which enables HTTPS calls and connections to networked storage
+  ClusterAllowAllOutboundToWorld:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ClusterSecurityGroup
+      IpProtocol: '-1'
+      CidrIp: 0.0.0.0/0
+
 Outputs:
   VPCId:
     Description: VPC ID
     Value: !Ref VPC
+  HPCClusterSecurityGroup:
+    Description: Cluster Security Group
+    Value: !Ref ClusterSecurityGroup
   PrivateSubnets:
     Description: Private Subnet IDs
     Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
