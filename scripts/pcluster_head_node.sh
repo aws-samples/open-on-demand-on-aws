@@ -54,6 +54,7 @@ EOF
 echo "[-] Creating slurm.conf for Open OnDemand" >> /var/log/onnodeconfigured.log
 # Build slurm.conf for Open OnDemand
 SlurmctldHost=$(hostname -s)
+SlurmctldPort=6820
 ClusterName=$CLUSTER_NAME
 AccountingStorageHost=$(hostname -s)
 AccountingStoragePort=6819
@@ -61,6 +62,7 @@ AccountingStoragePort=6819
 cat << EOF > /tmp/ood-slurm.conf
 SlurmUser=slurm
 SlurmctldHost=$SlurmctldHost
+SlurmctldPort=$SlurmctldPort
 ClusterName=$ClusterName
 AuthType=auth/munge
 CredType=cred/munge
