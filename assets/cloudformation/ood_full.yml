@@ -66,8 +66,13 @@ Parameters:
     Type: String
   SlurmVersion:
     Description: Verion of slurm to install
-    Default: 23.11.10
     Type: String
+    AllowedValues:
+      - "23.11.10"
+      - "24.05.7" # PCluster 3.13
+      - "24.11.5" # PCS
+    Default: 24.05.7
+
   DeploymentAssetBucketName:
     Description: Deployment Asset Bucket Name
     Type: String
