@@ -56,8 +56,6 @@ export SLURM_ACCOUNTING_DB_SECRET_ARN=$(echo $OOD_STACK | jq -r '.Stacks[].Outpu
 
 cat << EOF 
 [+] Using the following values to generate $PCLUSTER_FILENAME
-  DOMAIN_1                    $DOMAIN_1
-  DOMAIN_2                    $DOMAIN_2
   STACK_NAME                  $STACK_NAME
   REGION                      $REGION
   AD_SECRET_ARN               $AD_SECRET_ARN

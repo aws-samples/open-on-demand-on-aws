@@ -183,11 +183,6 @@ Resources:
 
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W36
-            reason: "Allow missing description"
     Properties:
       GroupDescription: Security Group for ALB
       SecurityGroupIngress:
@@ -525,7 +520,7 @@ Resources:
               - Effect: Allow
                 Action: 
                   - pcs:GetCluster
-                Resource: !Sub arn:${AWS::Partition}:pcs:${AWS::Region}:${AWS::AccountId}:cluster/*        
+                Resource: !Sub arn:${AWS::Partition}:pcs:${AWS::Region}:${AWS::AccountId}:cluster/*
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName} - OpenOnDemand IAM Role'
@@ -710,8 +705,8 @@ Resources:
       MinSize: "1"
       MaxSize: "1"
       DesiredCapacity: "1"
-      HealthCheckType: EC2
-      HealthCheckGracePeriod: 240
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 600
       MetricsCollection:
         - Granularity: 1Minute
       LaunchTemplate:
@@ -946,6 +941,8 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
