@@ -112,6 +112,9 @@ websockify_cmd: "/usr/local/bin/websockify"
 set_host: "host=\$(hostname | awk '{print \$1}')
 EOF
 
+# Restart httpd
+systemctl restart httpd
+
 #########################################################
 # Configure sackd
 #########################################################
