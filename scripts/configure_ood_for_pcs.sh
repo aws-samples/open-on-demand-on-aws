@@ -107,9 +107,9 @@ aws s3 cp /etc/slurm/slurm.conf s3://${ClusterConfigBucket}/slurm/
 rm -rf /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
 cat << EOF >> /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
 batch_connect:
-template: vnc
-websockify_cmd: "/usr/local/bin/websockify"
-set_host: "host=\$(hostname | awk '{print \$1}')"
+  template: vnc
+  websockify_cmd: "/usr/local/bin/websockify"
+  set_host: "host=\$(hostname | awk '{print \$1}')"
 EOF
 
 # Restart httpd
