@@ -109,7 +109,7 @@ cat << EOF >> /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
 batch_connect:
 template: vnc
 websockify_cmd: "/usr/local/bin/websockify"
-set_host: "host=\$(hostname | awk '{print \$1}')
+set_host: "host=\$(hostname | awk '{print \$1}')"
 EOF
 
 # Restart httpd
