@@ -30,6 +30,7 @@ Resources:
         GenerateStringKey: "password"
         ExcludeCharacters: '"@/\#'
         PasswordLength: 16
+      KmsKeyId: alias/aws/secretsmanager
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -59,16 +60,19 @@ Resources:
       DatabaseName: slurmaccounting
       MasterUsername: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:username}}'
       MasterUserPassword: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:password}}'
+      ManageMasterUserPassword: false
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
         - !Ref DatabaseSecurityGroup
       StorageEncrypted: true
+      DeletionProtection: true
 
   AuroraMasterSecretPassword:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub ${AWS::StackName}-rds-slurm-accounting-secret-password
       SecretString: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:password}}'
+      KmsKeyId: alias/aws/secretsmanager
 
   AuroraDBPrimaryInstance:
     Type: AWS::RDS::DBInstance

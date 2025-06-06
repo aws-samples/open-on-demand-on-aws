@@ -710,8 +710,8 @@ Resources:
       MinSize: "1"
       MaxSize: "1"
       DesiredCapacity: "1"
-      HealthCheckType: EC2
-      HealthCheckGracePeriod: 240
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 600
       MetricsCollection:
         - Granularity: 1Minute
       LaunchTemplate:
@@ -946,6 +946,8 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
