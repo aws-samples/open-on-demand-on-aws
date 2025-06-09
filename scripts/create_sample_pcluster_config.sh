@@ -18,7 +18,7 @@ PCLUSTER_FILENAME="pcluster-config.yml"
 
 # Generate help 
 if [ "$1" == "--help" ]; then
-  echo "Usage: $0 <stack-name> [region] [domain1] [domain2]"
+  echo "Usage: $0 <stack-name> [region] [ad_domain]"
   echo "  stack-name: The name of the stack you deployed"
   echo "  region: The region of the stack you deployed"
   echo "  ad_domain: The LDAP DN (e.g. DC=hpclab,DC=local)"
@@ -56,8 +56,6 @@ export SLURM_ACCOUNTING_DB_SECRET_ARN=$(echo $OOD_STACK | jq -r '.Stacks[].Outpu
 
 cat << EOF 
 [+] Using the following values to generate $PCLUSTER_FILENAME
-  DOMAIN_1                    $DOMAIN_1
-  DOMAIN_2                    $DOMAIN_2
   STACK_NAME                  $STACK_NAME
   REGION                      $REGION
   AD_SECRET_ARN               $AD_SECRET_ARN

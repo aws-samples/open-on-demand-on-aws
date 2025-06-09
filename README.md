@@ -107,11 +107,10 @@ You can automatically generate a ParallelCluster configuration file using the pr
 
 **Usage:**
 ```bash
-Usage: ./scripts/create_sample_pcluster_config.sh <stack-name> [region] [domain1] [domain2]
-  stack-name: The name of the OOD stack you deployed
+Usage: ./create_sample_pcluster_config.sh <stack-name> [region] [domain1] [domain2]
+  stack-name: The name of the stack you deployed
   region: The region of the stack you deployed
-  domain1: The first domain name to use for the cluster
-  domain2: The second domain name to use for the cluster
+  ad_domain: The LDAP DN (e.g. DC=hpclab,DC=local)
 ```
 
 #### Manual Cluster Configuration
