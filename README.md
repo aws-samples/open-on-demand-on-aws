@@ -66,8 +66,30 @@ All in one deployment including **infrastructure** and **Open OnDemand**
 **Deploy Stacks individually:**
 
 1. Deploy Infrastructure (*Networking, and Managed Active Directory*): [infra.yml](assets/cloudformation/infra.yml)
-2. Deploy Slurm Accounting Database: [slurm_accounting_db.yml](assets/cloudformation/slurm_accounting_db.yml)
+2. Deploy Slurm Accounting Database (_only if integrating with ParallelCluster_): [slurm_accounting_db.yml](assets/cloudformation/slurm_accounting_db.yml)
 3. Deploy Open OnDemand: [ood.yml](assets/cloudformation/ood.yml)
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| DomainName | Domain name not including the top level domain | hpclab |
+| TopLevelDomain | TLD for your domain (i.e. local, com, etc) | local |
+| WebsiteDomainName | Domain name for world facing website | - |
+| HostedZoneId | Hosted Zone Id for Route53 Domain | - |
+| PortalAllowedIPCIDR | IP CIDR for access to the Portal | - |
+| Branch | Branch of the code to deploy. Only use this when testing changes to the solution | main |
+| DeploymentAssetBucketName | Deployment Asset Bucket Name | - |
+| VPC | VPC for OOD deployment | - |
+| PrivateSubnet | Private subnet for OOD deployment | - |
+| PublicSubnet | Public subnet for OOD deployment | - |
+| BindDN | Bind DN for the directory | CN=Admin,OU=Users,OU=hpclab,DC=hpclab,DC=local |
+| LDAPSearchBase | LDAP Search Base | DC=hpclab,DC=local |
+| LDAPUri | LDAP URI for Managed AD | - |
+| BindPasswordSecretArn | BIND Password Secret ARN for Admin user in Managed AD | - |
+| ClusterConfigBucket | S3 Bucket where Cluster Configuration items are stored | - |
+| NodeArchitecture | Processor architecture for the login and compute node instances | x86 |
+| SlurmVersion | Version of slurm to install.  Select `24.11.5` or greater if using **AWS PCS** | 24.05.7 |
+| AccountingPolicyEnforcement | Specify which Slurm accounting policies to enforce | none |
+
 
 ## 🔑 Post Deployment Steps
 
@@ -371,7 +393,7 @@ This will output the `CommandId` of the command being run (**example below)**
 ccc5375a-e192-4d36-af57-5dd7a7740f0d
 ```
 
-6. Inspect the SSM results using the following command to verify the configuration was successful. This command will show the detailed output of the script execution, including:
+1. Inspect the SSM results using the following command to verify the configuration was successful. This command will show the detailed output of the script execution, including:
 
 - Command execution status
 - Standard output showing the configuration steps

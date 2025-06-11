@@ -56,7 +56,7 @@ display_help() {
     echo "  --node-architecture ARCH    Processor architecture for nodes (optional, defaults to x86)"
     echo "                              Allowed values: x86, Graviton"
     echo "  --slurm-version VERSION     Version of Slurm to use (optional, defaults to 24.11)"
-    echo "  --host-mount-point PATH     Mount path on the host (optional, defaults to /shared)"
+    echo "  --host-mount-point PATH     EFS Mount path to use on the PCS Cluster nodes (optional, defaults to /shared)"
     echo "  --branch BRANCH             Branch of the Open On Demand on AWS repository to use (optional, defaults to main)"
     echo "  --help                      Display this help message"
     echo
@@ -106,6 +106,10 @@ while [[ $# -gt 0 ]]; do
             SLURM_VERSION="$2"
             shift 2
             ;;
+        --host-mount-point)
+            HOST_MOUNT_POINT="$2"
+            shift 2
+            ;;
         --branch)
             BRANCH="$2"
             shift 2
@@ -142,6 +146,13 @@ if [ -z "${REGION:-}" ]; then
         display_help
         exit 1
     fi
+fi
+
+# Retrieve OOD_STACK parameter for SlurmVersion
+SLURM_VERSION=$(aws cloudformation describe-stacks --stack-name $OOD_STACK --query "Stacks[0].Parameters[?ParameterKey=='SlurmVersion'].ParameterValue" --output text)
+if [[ "$SLURM_VERSION" < "24.11.5" ]]; then
+    log "ERROR" "Slurm version must be 24.11.5 or higher"
+    exit 1
 fi
 
 log "INFO" "Deploying PCS Cluster using outputs from stack: '$INFRA_STACK' and '$OOD_STACK' in region: '$REGION'"
@@ -240,6 +251,7 @@ log "INFO" "VPC: $VPC"
 log "INFO" "Public Subnets: $PUBLIC_SUBNETS"
 log "INFO" "Private Subnets: $PRIVATE_SUBNETS"
 log "INFO" "Cluster Security Group ID: $CLUSTER_SECURITY_GROUP_ID"
+log "INFO" "EFS Mount Point: $HOST_MOUNT_POINT"
 log "INFO" "EFS FileSystem ID: $EFS_FILESYSTEM_ID"
 log "INFO" "EFS FileSystem Security Group ID: $EFS_FILESYSTEM_SECURITY_GROUP_ID"
 log "INFO" "Cluster Name: $CLUSTER_NAME"
@@ -261,6 +273,7 @@ aws cloudformation deploy \
         PublicSubnet="$PUBLIC_SUBNET" \
         PrivateSubnet="$PRIVATE_SUBNET" \
         HPCClusterSecurityGroupId="$CLUSTER_SECURITY_GROUP_ID" \
+        HostMountPoint="$HOST_MOUNT_POINT" \
         EFSFileSystemId="$EFS_FILESYSTEM_ID" \
         EfsFilesystemSecurityGroupId="$EFS_FILESYSTEM_SECURITY_GROUP_ID" \
         SlurmVersion="$SLURM_VERSION" \
