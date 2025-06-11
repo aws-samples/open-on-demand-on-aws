@@ -314,7 +314,7 @@ Resources:
               ldap_schema = AD
               ldap_search_base = ${LDAP_SEARCH_BASE}
               ldap_tls_reqcert = allow
-              ldap_uri = ldap://$LDAP_URI
+              ldap_uri = ldap://${LDAP_URI}
               ldap_auth_disable_tls_never_use_in_production = true
               use_fully_qualified_names = False
 
@@ -346,17 +346,17 @@ Resources:
 
               echo "Creating cluster configuration file for OOD" >> /var/log/user-data.log
               # Create a cluster configuration file for OOD
-              cat << EOF > $CLUSTER_NAME.yml
+              cat << EOF > ${CLUSTER_NAME}.yml
               ---
               v2:
                 metadata:
-                  title: "$CLUSTER_NAME"
+                  title: "${CLUSTER_NAME}"
                   hidden: false
                 login:
                   host: "$(hostname -s)"
                 job:
                   adapter: "slurm"
-                  cluster: "$CLUSTER_NAME"
+                  cluster: "${CLUSTER_NAME}"
                   bin: "/bin"
                   bin_overrides:
                     sbatch: "/etc/ood/config/bin_overrides.py"
@@ -364,15 +364,15 @@ Resources:
 
               echo "Copying cluster configuration file to the OOD config bucket" >> /var/log/user-data.log
               # Copy the cluster configuration file to the OOD config bucket
-              aws s3 cp $CLUSTER_NAME.yml s3://${ClusterConfigBucket}/clusters/
+              aws s3 cp ${CLUSTER_NAME}.yml s3://${ClusterConfigBucket}/clusters/
               
               --==MYBOUNDARY==
-            - BIND_DN: '${BindDN}'
-              BIND_PASSWORD: '${BindPasswordSecretArn}'
-              DOMAIN_NAME: '${DomainName}.${TopLevelDomain}'
-              LDAP_SEARCH_BASE: '${LDAPSearchBase}'
+            - BIND_DN: !Sub '${BindDN}'
+              BIND_PASSWORD: !Sub '${BindPasswordSecretArn}'
+              DOMAIN_NAME: !Sub '${DomainName}.${TopLevelDomain}'
+              LDAP_SEARCH_BASE: !Sub '${LDAPSearchBase}'
               LDAP_URI: !Sub '${LDAPUri}'
-              CLUSTER_NAME: !Ref ClusterName
+              CLUSTER_NAME: !Sub '${ClusterName}'
               ClusterConfigBucket: !Sub '${ClusterConfigBucket}'
 
   PCSDesktopNodeLaunchTemplate:
@@ -443,7 +443,7 @@ Resources:
               ldap_schema = AD
               ldap_search_base = ${LDAP_SEARCH_BASE}
               ldap_tls_reqcert = allow
-              ldap_uri = ldap://$LDAP_URI
+              ldap_uri = ldap://${LDAP_URI}
               ldap_auth_disable_tls_never_use_in_production = true
               use_fully_qualified_names = False
 
@@ -517,12 +517,12 @@ Resources:
               echo "DONE" >> /var/log/configure_desktop.log
               
               --==MYBOUNDARY==
-            - BIND_DN: '${BindDN}'
-              BIND_PASSWORD: '${BindPasswordSecretArn}'
-              DOMAIN_NAME: '${DomainName}.${TopLevelDomain}'
-              LDAP_SEARCH_BASE: '${LDAPSearchBase}'
+            - BIND_DN: !Sub '${BindDN}'
+              BIND_PASSWORD: !Sub '${BindPasswordSecretArn}'
+              DOMAIN_NAME: !Sub '${DomainName}.${TopLevelDomain}'
+              LDAP_SEARCH_BASE: !Sub '${LDAPSearchBase}'
               LDAP_URI: !Sub '${LDAPUri}'
-              CLUSTER_NAME: !Ref ClusterName
+              CLUSTER_NAME: !Sub '${ClusterName}'
               ClusterConfigBucket: !Sub '${ClusterConfigBucket}'
 
   # Compute Node groups - Login Nodes
