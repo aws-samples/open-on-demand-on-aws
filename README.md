@@ -352,40 +352,64 @@ curl -o s3_script_runner.sh https://raw.githubusercontent.com/aws-samples/open-o
 chmod +x s3_script_runner.sh
 ```
 
-4. Run the following command to setup some parameters that will be used later.
+4. Configure the required parameters for `s3_script_runner.sh`
 
 Setup parameters needed for SSM Send Command to configure the Open OnDemand instance with PCS cluster settings. These parameters include:
 
 - **CLUSTER_ID**: The ID of the PCS cluster
 - **CLUSTER_CONFIG_BUCKET**: The S3 bucket storing cluster configurations
 - **INSTANCE_ID**: The EC2 instance ID of the Open OnDemand web portal
-- **OOD_STACK**: The CloudFormation stack name for Open OnDemand
-- **CLUSTER_NAME**: The name of the workshop cluster
+- **OOD_STACK**: The name of the **Open OnDemand** CloudFormation stack
+- **PCS_CLUSTER_STACK**: The name of the **PCS Getting Started** CloudFormation stack
 
    
 ```bash
-CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name pcs-starter --query "Stacks[0].Outputs[?OutputKey=='ClusterId'].OutputValue" --output text)
-CLUSTER_CONFIG_BUCKET=$(aws cloudformation describe-stacks --stack-name ood --query "Stacks[0].Outputs[?OutputKey=='ClusterConfigBucket'].OutputValue" --output text)
+OOD_STACK="{OOD_STACK_NAME}"
+PCS_CLUSTER_STACK="{PCS_CLUSTER_STACK}"
+CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PCS_CLUSTER_STACK --query "Stacks[0].Outputs[?OutputKey=='ClusterId'].OutputValue" --output text)
+CLUSTER_CONFIG_BUCKET=$(aws cloudformation describe-stacks --stack-name $OOD_STACK --query "Stacks[0].Outputs[?OutputKey=='ClusterConfigBucket'].OutputValue" --output text)
 INSTANCE_ID=$(aws ec2 describe-instances --filters \
   "Name=tag:ood,Values=webportal-ood" \
   "Name=instance-state-name,Values=running" \
   --query "Reservations[].Instances[].InstanceId" \
 --output text)
-OOD_STACK="<INSERT OOD STACK NAME>"
-CLUSTER_NAME="pcs-starter"
 ```
 
-5. Run the `s3_script_runner.sh` script which will trigger an `ssm send-command` request trigger the Open OnDemand ec2 instance to run a script which will configure both `sackd` and `slurm` and integrate it with the PCS cluster.
+- Replace `{OOD_STACK_NAME}` with the name of your Open OnDemand stack (e.g. `ood`)
+- Replace `{PCS_CLUSTER_STACK}` with the name of your PCS Getting Started stack (e.g. `pcs-starter`)
+
+To validate you have all of the parameters set run the following command:
+
+```
+for var in OOD_STACK PCS_CLUSTER_STACK CLUSTER_ID CLUSTER_CONFIG_BUCKET INSTANCE_ID; do
+    echo "$var: ${!var:-<null>}"
+done
+```
+
+The output should similar to the following:
+```
+OOD_STACK: ood
+PCS_CLUSTER_STACK: pcs-starter
+CLUSTER_ID: pcs_6x5nsf236m
+CLUSTER_CONFIG_BUCKET: ood-clusterconfigbucket-nrl56bjgpwru
+INSTANCE_ID: i-05a3ce6b349b232f3
+```
+
+5. Run `s3_script runner.sh`
 
 
 ```bash
+CLUSTER_NAME="{CLUSTER_NAME}"
 COMMAND_ID=$(./s3_script_runner.sh \
   --instance-id "$INSTANCE_ID" \
-  --document-name "pcs-starter-S3ScriptRunner" \
+  --document-name "${PCS_CLUSTER_STACK}-S3ScriptRunner" \
   --bucket-name "$CLUSTER_CONFIG_BUCKET" \
   --script-key "configure_ood_for_pcs.sh" \
   --script-args "--ood-stack $OOD_STACK --cluster-name $CLUSTER_NAME --cluster-id $CLUSTER_ID --region $AWS_REGION")
 ```
+
+- Replace `{CLUSTER_NAME}` with the name of your PCS Cluster (e.g. `pcs-starter`)
+  - **Note**: This is the **ClusterName** parameter supplied when you deployed the PCS getting started CloudFormation stack
 
 This will output the `CommandId` of the command being run (**example below)**
 
@@ -393,7 +417,7 @@ This will output the `CommandId` of the command being run (**example below)**
 ccc5375a-e192-4d36-af57-5dd7a7740f0d
 ```
 
-1. Inspect the SSM results using the following command to verify the configuration was successful. This command will show the detailed output of the script execution, including:
+6. Inspect the SSM results using the following command to verify the configuration was successful. This command will show the detailed output of the script execution, including:
 
 - Command execution status
 - Standard output showing the configuration steps
