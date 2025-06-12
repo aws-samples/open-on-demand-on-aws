@@ -2,6 +2,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
+set -euo pipefail
+
 display_help() {
     echo "Usage: $0 [options]"
     echo "Options:"

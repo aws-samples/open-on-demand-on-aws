@@ -1,6 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-
+Description: Getting started with AWS PCS with Open OnDemand
 #
 # Referenced from https://github.com/aws-samples/aws-hpc-recipes/blob/main/recipes/pcs/getting_started/assets/cluster.yaml
 # 
@@ -12,9 +11,7 @@ Metadata:
       - Label:
           default: Networking Configuration
         Parameters:
-          - VPC
           - PrivateSubnet
-          - PublicSubnet
       - Label:
           default: Storage Configuration
         Parameters:
@@ -43,15 +40,8 @@ Metadata:
           - ClusterConfigBucket
 
 Parameters:
-  VPC:
-    Description: VPC for PCS cluster
-    Type: AWS::EC2::VPC::Id
-    ConstraintDescription: must be a valid VPC Id
   PrivateSubnet:
     Description: Private subnet
-    Type: AWS::EC2::Subnet::Id
-  PublicSubnet:
-    Description: Public subnet
     Type: AWS::EC2::Subnet::Id
   ClusterName:
     Description: Name of the PCS cluster
@@ -164,7 +154,7 @@ Resources:
   PcsInstanceIamRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "AWSPCS-MinimalRole-role"
+      RoleName: "AWSPCS-MinimalRole-role"
       Description: "AWS IAM role for PCS node group instances"
       AssumeRolePolicyDocument:
         Statement:
@@ -204,7 +194,7 @@ Resources:
     Properties:
       Roles:
         - !Ref PcsInstanceIamRole
-      InstanceProfileName: !Sub "AWSPCS-MinimalRole"
+      InstanceProfileName: "AWSPCS-MinimalRole"
 
   #
   # Referenced from https://github.com/aws-samples/aws-hpc-recipes/blob/main/recipes/pcs/getting_started/assets/pcs-lt-efs.yaml

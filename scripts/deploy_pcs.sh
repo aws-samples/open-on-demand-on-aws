@@ -149,9 +149,9 @@ if [ -z "${REGION:-}" ]; then
 fi
 
 # Retrieve OOD_STACK parameter for SlurmVersion
-SLURM_VERSION=$(aws cloudformation describe-stacks --stack-name $OOD_STACK --query "Stacks[0].Parameters[?ParameterKey=='SlurmVersion'].ParameterValue" --output text)
-if [[ "$SLURM_VERSION" < "24.11.5" ]]; then
-    log "ERROR" "Slurm version must be 24.11.5 or higher"
+SLURM_VERSION=$(aws cloudformation describe-stacks --stack-name $OOD_STACK --query "Stacks[0].Parameters[?ParameterKey=='SlurmVersion'].ParameterValue" --output text | cut -d'.' -f1,2)
+if (( $(echo "$SLURM_VERSION >= 24.11" | bc -l) == 0 )); then
+    log "ERROR" "Slurm version must be 24.11 or higher"
     exit 1
 fi
 
@@ -170,19 +170,6 @@ fi
 
 # Get required outputs from the infrastructure stack
 log "INFO" "Getting CloudFormation outputs..."
-
-VPC=$(get_stack_output "$INFRA_STACK" "VPCId")
-if [ -z "$VPC" ]; then
-    log "ERROR" "VPC is null"
-    exit 1
-fi
-
-PUBLIC_SUBNETS=$(get_stack_output "$INFRA_STACK" "PublicSubnets")
-PUBLIC_SUBNET=$(echo "$PUBLIC_SUBNETS" | cut -d',' -f1)
-if [ -z "$PUBLIC_SUBNET" ]; then
-    log "ERROR" "PublicSubnets is null"
-    exit 1
-fi
 
 PRIVATE_SUBNETS=$(get_stack_output "$INFRA_STACK" "PrivateSubnets")
 PRIVATE_SUBNET=$(echo "$PRIVATE_SUBNETS" | cut -d',' -f1)
@@ -247,10 +234,9 @@ PCS_STARTER_TEMPLATE="https://raw.githubusercontent.com/aws-samples/open-on-dema
 # Deploy PCS Cluster stack
 log "INFO" "PCS Cluster deployment parameters:"
 log "INFO" "--------------------------------------------------------"
-log "INFO" "VPC: $VPC"
-log "INFO" "Public Subnets: $PUBLIC_SUBNETS"
 log "INFO" "Private Subnets: $PRIVATE_SUBNETS"
 log "INFO" "Cluster Security Group ID: $CLUSTER_SECURITY_GROUP_ID"
+log "INFO" "Slurm Version: $SLURM_VERSION"
 log "INFO" "EFS Mount Point: $HOST_MOUNT_POINT"
 log "INFO" "EFS FileSystem ID: $EFS_FILESYSTEM_ID"
 log "INFO" "EFS FileSystem Security Group ID: $EFS_FILESYSTEM_SECURITY_GROUP_ID"
@@ -269,8 +255,6 @@ aws cloudformation deploy \
     --template-file pcs-starter.yml \
     --stack-name $STACK_NAME \
     --parameter-overrides \
-        VPC="$VPC" \
-        PublicSubnet="$PUBLIC_SUBNET" \
         PrivateSubnet="$PRIVATE_SUBNET" \
         HPCClusterSecurityGroupId="$CLUSTER_SECURITY_GROUP_ID" \
         HostMountPoint="$HOST_MOUNT_POINT" \
