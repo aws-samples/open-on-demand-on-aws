@@ -136,6 +136,7 @@ Parameters:
   MungeKeySecretArn:
     Description: (Optional) Munge Key Secret ARN.  If left blank a munge key will be created.
     Type: String
+    Default: ""
   Branch:
     Description: Branch of the code to deploy. Only use this when testing changes to the solution
     Default: main
