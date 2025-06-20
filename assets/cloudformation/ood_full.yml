@@ -102,12 +102,14 @@ Resources:
         VPC: !GetAtt [ OODInfra, Outputs.VPCId ]
         PublicSubnets: !GetAtt [ OODInfra, Outputs.PublicSubnets ]
         PrivateSubnets: !GetAtt [ OODInfra, Outputs.PrivateSubnets ]
+        PCSClusterSecurityGroup: !GetAtt [ OODInfra, Outputs.HPCClusterSecurityGroup ]
         DomainName: !GetAtt [ OODInfra, Outputs.DomainName ]
         TopLevelDomain: !GetAtt [ OODInfra, Outputs.TopLevelDomain ]
         HostedZoneId: !Ref HostedZoneId
         PortalAllowedIPCIDR: !Ref PortalAllowedIPCIDR
         WebsiteDomainName: !Ref WebsiteDomainName
         SlurmAccountingDBSecret: !GetAtt [ OODSlurmAccountingDB, Outputs.DBSecretId ]
+        SlurmAccountingDBSecretPassword: !GetAtt [ OODSlurmAccountingDB, Outputs.DBSecretPassword ]
         SlurmAccountingDBSecurityGroup: !GetAtt [ OODSlurmAccountingDB, Outputs.DBSecurityGroup ]
         ADAdministratorSecret: !GetAtt [ OODInfra, Outputs.ADAdministratorSecretARN ]
         LDAPNLBEndPoint: !GetAtt [ OODInfra, Outputs.LDAPNLBEndPoint ]
