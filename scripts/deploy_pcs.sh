@@ -150,7 +150,7 @@ fi
 
 # Retrieve OOD_STACK parameter for SlurmVersion
 SLURM_VERSION=$(aws cloudformation describe-stacks --stack-name $OOD_STACK --query "Stacks[0].Parameters[?ParameterKey=='SlurmVersion'].ParameterValue" --output text | cut -d'.' -f1,2)
-if (( $(echo "$SLURM_VERSION >= 24.11" | bc -l) == 0 )); then
+if ! awk -v version="$SLURM_VERSION" -v min_version="24.11" 'BEGIN {exit (version < min_version)}'; then
     log "ERROR" "Slurm version must be 24.11 or higher"
     exit 1
 fi
