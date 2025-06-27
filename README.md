@@ -40,11 +40,26 @@ The deployment process involves several key steps to set up Open OnDemand with A
 
 All in one deployment including **infrastructure** and **Open OnDemand**
 
-1. Deploy CloudFormation assets to S3:
+1. Open AWS CloudShell
+
+2. Download `deploy-assets.sh`
+
+```bash
+curl -o deploy-assets.sh https://raw.githubusercontent.com/aws-samples/open-on-demand-on-aws/refs/heads/main/deploy-assets.sh
+```
+
+3. Make the script executable:
+
+```bash
+chmod +x deploy-assets.sh
+```
+
+4. Deploy CloudFormation assets to S3:
    ```bash
    ./deploy-assets.sh
    ```
-   This script uploads all required CloudFormation templates and assets to an S3 bucket in your AWS account.
+
+   **Note**: This script uploads all required CloudFormation templates and assets to an S3 bucket in your AWS account.
 
 2. Deploy the all-in-one stack [ood_full.yml](assets/cloudformation/ood_full.yml) via CloudFormation.  
 
