@@ -708,7 +708,7 @@ Resources:
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT15M
+        Timeout: PT20M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         PauseTime: PT15M
