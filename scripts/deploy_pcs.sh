@@ -55,7 +55,6 @@ display_help() {
     echo "  --cluster-name NAME         Name of the PCS cluster (optional, defaults to pcs-starter)"
     echo "  --node-architecture ARCH    Processor architecture for nodes (optional, defaults to x86)"
     echo "                              Allowed values: x86, Graviton"
-    echo "  --slurm-version VERSION     Version of Slurm to use (optional, defaults to 24.11)"
     echo "  --host-mount-point PATH     EFS Mount path to use on the PCS Cluster nodes (optional, defaults to /shared)"
     echo "  --branch BRANCH             Branch of the Open On Demand on AWS repository to use (optional, defaults to main)"
     echo "  --help                      Display this help message"
@@ -100,10 +99,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --node-architecture)
             NODE_ARCHITECTURE="$2"
-            shift 2
-            ;;
-        --slurm-version)
-            SLURM_VERSION="$2"
             shift 2
             ;;
         --host-mount-point)
@@ -270,7 +265,6 @@ aws cloudformation deploy \
         LDAPUri="$LDAP_URI" \
         BindPasswordSecretArn="$AD_ADMINISTRATOR_SECRET" \
         NodeArchitecture="$NODE_ARCHITECTURE" \
-        SlurmVersion="$SLURM_VERSION" \
     --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
 
 if [ $? -ne 0 ]; then

@@ -288,7 +288,6 @@ Options:
   --cluster-name NAME         Name of the PCS cluster (optional, defaults to pcs-starter)
   --node-architecture ARCH    Processor architecture for nodes (optional, defaults to x86)
                               Allowed values: x86, Graviton
-  --slurm-version VERSION     Version of Slurm to use (optional, defaults to 24.11)
   --host-mount-point PATH     Mount path on the host (optional, defaults to /shared)
   --branch BRANCH             Branch of the Open On Demand on AWS repository to use (optional, defaults to main)
   --help                      Display this help message
