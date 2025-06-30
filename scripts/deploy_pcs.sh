@@ -55,7 +55,6 @@ display_help() {
     echo "  --cluster-name NAME         Name of the PCS cluster (optional, defaults to pcs-starter)"
     echo "  --node-architecture ARCH    Processor architecture for nodes (optional, defaults to x86)"
     echo "                              Allowed values: x86, Graviton"
-    echo "  --slurm-version VERSION     Version of Slurm to use (optional, defaults to 24.11)"
     echo "  --host-mount-point PATH     EFS Mount path to use on the PCS Cluster nodes (optional, defaults to /shared)"
     echo "  --branch BRANCH             Branch of the Open On Demand on AWS repository to use (optional, defaults to main)"
     echo "  --help                      Display this help message"
@@ -102,10 +101,6 @@ while [[ $# -gt 0 ]]; do
             NODE_ARCHITECTURE="$2"
             shift 2
             ;;
-        --slurm-version)
-            SLURM_VERSION="$2"
-            shift 2
-            ;;
         --host-mount-point)
             HOST_MOUNT_POINT="$2"
             shift 2
@@ -150,7 +145,7 @@ fi
 
 # Retrieve OOD_STACK parameter for SlurmVersion
 SLURM_VERSION=$(aws cloudformation describe-stacks --stack-name $OOD_STACK --query "Stacks[0].Parameters[?ParameterKey=='SlurmVersion'].ParameterValue" --output text | cut -d'.' -f1,2)
-if (( $(echo "$SLURM_VERSION >= 24.11" | bc -l) == 0 )); then
+if ! awk -v version="$SLURM_VERSION" -v min_version="24.11" 'BEGIN {exit (version < min_version)}'; then
     log "ERROR" "Slurm version must be 24.11 or higher"
     exit 1
 fi
@@ -270,7 +265,6 @@ aws cloudformation deploy \
         LDAPUri="$LDAP_URI" \
         BindPasswordSecretArn="$AD_ADMINISTRATOR_SECRET" \
         NodeArchitecture="$NODE_ARCHITECTURE" \
-        SlurmVersion="$SLURM_VERSION" \
     --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
 
 if [ $? -ne 0 ]; then

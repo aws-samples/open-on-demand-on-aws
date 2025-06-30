@@ -44,7 +44,8 @@ All in one deployment including **infrastructure** and **Open OnDemand**
    ```bash
    ./deploy-assets.sh
    ```
-   This script uploads all required CloudFormation templates and assets to an S3 bucket in your AWS account.
+
+   **Note**: This script uploads all required CloudFormation templates and assets to an S3 bucket in your AWS account.
 
 2. Deploy the all-in-one stack [ood_full.yml](assets/cloudformation/ood_full.yml) via CloudFormation.  
 
@@ -288,7 +289,6 @@ Options:
   --cluster-name NAME         Name of the PCS cluster (optional, defaults to pcs-starter)
   --node-architecture ARCH    Processor architecture for nodes (optional, defaults to x86)
                               Allowed values: x86, Graviton
-  --slurm-version VERSION     Version of Slurm to use (optional, defaults to 24.11)
   --host-mount-point PATH     Mount path on the host (optional, defaults to /shared)
   --branch BRANCH             Branch of the Open On Demand on AWS repository to use (optional, defaults to main)
   --help                      Display this help message

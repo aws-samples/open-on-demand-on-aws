@@ -673,26 +673,10 @@ Resources:
           Enabled: true
         UserData:
           Fn::Base64: !Sub |
-            #!/bin/bash
-            cd /opt
-            curl -O https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
-            tar -xvpf aws-cfn-bootstrap-py3-latest.tar.gz
-            cd aws-cfn-bootstrap-2.0
-            python3 setup.py build
-            python3 setup.py install
-
-            cd /opt
-            mkdir aws
-            cd aws
-            mkdir bin
-            INSTALL_PATH=/usr/local/bin
-            ln -s $INSTALL_PATH/cfn-hup /opt/aws/bin/cfn-hup
-            ln -s $INSTALL_PATH/cfn-init /opt/aws/bin/cfn-init
-            ln -s $INSTALL_PATH/cfn-signal /opt/aws/bin/cfn-signal
-            ln -s $INSTALL_PATH/cfn-elect-cmd-leader /opt/aws/bin/cfn-elect-cmd-leader
-            ln -s $INSTALL_PATH/cfn-get-metadata /opt/aws/bin/cfn-get-metadata
-            ln -s $INSTALL_PATH/cfn-send-cmd-event /opt/aws/bin/cfn-send-cmd-event
-            ln -s $INSTALL_PATH/cfn-send-cmd-result /opt/aws/bin/cfn-send-cmd-result
+            #!/bin/bash -e
+            set -o pipefail
+            exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+            yum update -y aws-cfn-bootstrap
 
             # Call cfn-init script to install files and packages
             /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configsets config
@@ -724,7 +708,7 @@ Resources:
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT15M
+        Timeout: PT20M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         PauseTime: PT15M
