@@ -297,7 +297,7 @@ Resources:
               default_shell = /bin/bash
               fallback_homedir = /shared/home/%u
               id_provider = ldap
-              ldap_default_authtok = $(aws secretsmanager get-secret-value --secret-id ${BindPasswordSecretArn} --query SecretString --output text)
+              ldap_default_authtok = $(aws secretsmanager get-secret-value --secret-id ${BindPasswordSecretArn} --query SecretString --region ${REGION} --output text)
               ldap_default_bind_dn = ${BIND_DN}
               ldap_id_mapping = True
               ldap_referrals = False
@@ -364,6 +364,7 @@ Resources:
               LDAP_URI: !Sub '${LDAPUri}'
               CLUSTER_NAME: !Sub '${ClusterName}'
               ClusterConfigBucket: !Sub '${ClusterConfigBucket}'
+              REGION: !Ref AWS::Region
 
   PCSDesktopNodeLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -426,7 +427,7 @@ Resources:
               default_shell = /bin/bash
               fallback_homedir = /shared/home/%u
               id_provider = ldap
-              ldap_default_authtok = $(aws secretsmanager get-secret-value --secret-id ${BindPasswordSecretArn} --query SecretString --output text)
+              ldap_default_authtok = $(aws secretsmanager get-secret-value --secret-id ${BindPasswordSecretArn} --query SecretString --region ${REGION} --output text)
               ldap_default_bind_dn = ${BIND_DN}
               ldap_id_mapping = True
               ldap_referrals = False
@@ -514,6 +515,7 @@ Resources:
               LDAP_URI: !Sub '${LDAPUri}'
               CLUSTER_NAME: !Sub '${ClusterName}'
               ClusterConfigBucket: !Sub '${ClusterConfigBucket}'
+              REGION: !Ref AWS::Region
 
   # Compute Node groups - Login Nodes
   PCSNodeGroupLogin:
