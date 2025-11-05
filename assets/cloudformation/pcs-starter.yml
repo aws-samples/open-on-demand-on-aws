@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Getting started with AWS PCS with Open OnDemand
 #
 # Referenced from https://github.com/aws-samples/aws-hpc-recipes/blob/main/recipes/pcs/getting_started/assets/cluster.yaml
-# 
+#
 
 ### Stack metadata
 Metadata:
@@ -128,7 +128,7 @@ Resources:
       cfn-lint:
         config:
           ignore_checks:
-            - E3002  
+            - E3002
     Type: AWS::PCS::Cluster
     Properties:
       Name: !Ref ClusterName
@@ -137,15 +137,15 @@ Resources:
         Type: SLURM
         Version: !Ref SlurmVersion
       Networking:
-        SubnetIds: 
+        SubnetIds:
           - !Ref PrivateSubnet
-        SecurityGroupIds: 
+        SecurityGroupIds:
           - !Ref HPCClusterSecurityGroupId
       SlurmConfiguration:
         Accounting:
           Mode: STANDARD
           DefaultPurgeTimeInDays: 30
-        SlurmCustomSettings: !If 
+        SlurmCustomSettings: !If
           - SetAccountingPolicy
           - - ParameterName: AccountingStorageEnforce
               ParameterValue: !Ref AccountingPolicyEnforcement
@@ -227,7 +227,7 @@ Resources:
 
             packages:
             - amazon-efs-utils
-            
+
             runcmd:
             - mkdir -p ${HostMountPoint}
             - echo "${EFSFileSystemId}:/ ${HostMountPoint} efs tls,_netdev" >> /etc/fstab
@@ -266,7 +266,7 @@ Resources:
 
               packages:
               - amazon-efs-utils
-              
+
               runcmd:
               - mkdir -p ${HostMountPoint}
               - echo "${EFSFileSystemId}:/ ${HostMountPoint} efs tls,_netdev" >> /etc/fstab
@@ -277,10 +277,10 @@ Resources:
               --==MYBOUNDARY==
               Content-Type: text/x-shellscript; charset="us-ascii"
               MIME-Version: 1.0
-              
+
               #!/bin/bash
               yum install -yq sssd sssd-tools sssd-ldap oddjob-mkhomedir authselect jq
-              
+
               # Enable home directory creation
               authselect select sssd with-mkhomedir --force
               systemctl enable --now oddjobd.service
@@ -355,7 +355,7 @@ Resources:
               echo "Copying cluster configuration file to the OOD config bucket" >> /var/log/user-data.log
               # Copy the cluster configuration file to the OOD config bucket
               aws s3 cp ${CLUSTER_NAME}.yml s3://${ClusterConfigBucket}/clusters/
-              
+
               --==MYBOUNDARY==
             - BIND_DN: !Sub '${BindDN}'
               BIND_PASSWORD: !Sub '${BindPasswordSecretArn}'
@@ -395,7 +395,7 @@ Resources:
 
               packages:
               - amazon-efs-utils
-              
+
               runcmd:
               - mkdir -p ${HostMountPoint}
               - echo "${EFSFileSystemId}:/ ${HostMountPoint} efs tls,_netdev" >> /etc/fstab
@@ -406,11 +406,11 @@ Resources:
               --==MYBOUNDARY==
               Content-Type: text/x-shellscript; charset="us-ascii"
               MIME-Version: 1.0
-              
+
               #!/bin/bash
               #!/bin/bash
               yum install -yq sssd sssd-tools sssd-ldap oddjob-mkhomedir authselect jq
-              
+
               # Enable home directory creation
               authselect select sssd with-mkhomedir --force
               systemctl enable --now oddjobd.service
@@ -500,13 +500,13 @@ Resources:
               echo "Updating bashrc" >> /var/log/configure_desktop.log
               cat >> /etc/bashrc << 'EOF'
               PATH=$PATH:/opt/TurboVNC/bin:/shared/software/bin
-              
+
               #this is to fix the dconf permission error
               export XDG_RUNTIME_DIR="$HOME/.cache/dconf"
               EOF
 
               echo "DONE" >> /var/log/configure_desktop.log
-              
+
               --==MYBOUNDARY==
             - BIND_DN: !Sub '${BindDN}'
               BIND_PASSWORD: !Sub '${BindPasswordSecretArn}'
@@ -530,7 +530,7 @@ Resources:
       CustomLaunchTemplate:
         TemplateId: !Ref PCSLoginNodeLaunchTemplate
         Version: !GetAtt [PCSLoginNodeLaunchTemplate, LatestVersionNumber]
-      SubnetIds: 
+      SubnetIds:
         - !Ref PrivateSubnet
       AmiId: !GetAtt [PcsSampleAmi, AmiId]
       InstanceConfigs:
@@ -549,7 +549,7 @@ Resources:
       CustomLaunchTemplate:
         TemplateId: !Ref PCSLaunchTemplate
         Version: !GetAtt [PCSLaunchTemplate, LatestVersionNumber]
-      SubnetIds: 
+      SubnetIds:
         - !Ref PrivateSubnet
       AmiId: !GetAtt [PcsSampleAmi, AmiId]
       InstanceConfigs:
@@ -568,7 +568,7 @@ Resources:
       CustomLaunchTemplate:
         TemplateId: !Ref PCSDesktopNodeLaunchTemplate
         Version: !GetAtt [PCSDesktopNodeLaunchTemplate, LatestVersionNumber]
-      SubnetIds: 
+      SubnetIds:
         - !Ref PrivateSubnet
       AmiId: !GetAtt [PcsSampleAmi, AmiId]
       InstanceConfigs:
@@ -635,7 +635,7 @@ Resources:
           def get_latest_ami(ami_name_prefix):
               ec2_client = boto3.client('ec2')
               filters = [{'Name': 'name','Values': [f'{ami_name_prefix}*']}]
-              response = ec2_client.describe_images(Filters=filters)
+              response = ec2_client.describe_images(Filters=filters, Owners=["amazon"])
               ami_list = response['Images']
               sorted_ami_list = sorted(ami_list, key=lambda x: x['CreationDate'], reverse=True)
               return sorted_ami_list[0]['ImageId'] if sorted_ami_list else None
@@ -669,13 +669,13 @@ Resources:
 
           def handler(event, context):
               logger.info(f'Received event: {json.dumps(event)}')
-              
+
               try:
                   properties = event['ResourceProperties']
                   os_name = properties.get('OperatingSystem')
                   architecture = properties.get('Architecture')
                   slurm_version = properties.get('SlurmVersion')
-                  
+
                   # Validate required properties
                   if not all([os_name, architecture, slurm_version]):
                       raise ValueError('OperatingSystem, Architecture, and SlurmVersion are required in ResourceProperties')
@@ -687,7 +687,7 @@ Resources:
 
                   ami_name_prefix = construct_ami_prefix(os_name, architecture, slurm_version)
                   logger.info(f'Looking up AMI with prefix: {ami_name_prefix}')
-                  
+
                   ami_id = get_latest_ami(ami_name_prefix)
                   if not ami_id:
                       raise ValueError(f'No AMI found matching prefix: {ami_name_prefix}')
@@ -696,7 +696,7 @@ Resources:
                       'AmiId': ami_id,
                       'AmiPrefix': ami_name_prefix
                   }
-                  
+
                   send_response(event, context, 'SUCCESS', response_data, ami_id)
 
               except Exception as e:
@@ -742,16 +742,16 @@ Resources:
                 - |
                   #!/bin/bash
                   set -e
-                  
+
                   # Download script from S3
                   aws s3 cp s3://{{ bucketName }}/{{ scriptKey }} /tmp/script.sh
-                  
+
                   # Make script executable
                   chmod +x /tmp/script.sh
-                  
+
                   # Run script with arguments
                   /tmp/script.sh {{ scriptArgs }}
-                  
+
                   # Clean up
                   rm -f /tmp/script.sh
 
@@ -764,7 +764,7 @@ Outputs:
     Value: !Sub
       - https://${ConsoleDomain}/ec2/home?region=${AWS::Region}#Instances:instanceState=running;tag:aws:pcs:compute-node-group-id=${NodeGroupLoginId}
       - { ConsoleDomain: !Sub '${AWS::Region}.console.aws.amazon.com',
-          NodeGroupLoginId: !GetAtt [ PCSNodeGroupLogin, Id ] 
+          NodeGroupLoginId: !GetAtt [ PCSNodeGroupLogin, Id ]
         }
     Export:
       Name: !Sub ${AWS::StackName}-Ec2ConsoleUrl
