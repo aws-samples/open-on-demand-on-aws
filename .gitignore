@@ -4,3 +4,5 @@ local
 local/*
 pcluster-config.yml
 .vscode
+.zed
+.configs

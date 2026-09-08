@@ -29,7 +29,7 @@ Metadata:
           - TopLevelDomain
           - DomainName
           - LDAPNLBEndPoint
-      - Label: 
+      - Label:
           default: Storage
         Parameters:
           - EFSFileSystemId
@@ -123,7 +123,7 @@ Parameters:
     Default: "False"
     AllowedValues:
          - "True"
-         - "False"    
+         - "False"
   SlurmAccountingDBSecret:
     Description: (Optional) Slurm Accounting DB Secret ARN.
     Type: String
@@ -144,10 +144,9 @@ Parameters:
     Description: Select the verion of slurm to install
     Type: String
     AllowedValues:
-      - "23.11.10"
-      - "24.05.7" # PCluster 3.13
-      - "24.11.5" # PCS
-    Default: "24.05.7"
+      - "25.05.5" # PCS
+      - "25.11.6" # PCluster 3.16.0 / PCS
+    Default: "25.11.6"
 
 #######################
 #     Conditions      #
@@ -191,7 +190,7 @@ Resources:
           ToPort: 443
           IpProtocol: tcp
           Description: HTTPS Access
-        - !If 
+        - !If
           - HasWebsiteDomain
           - !Ref AWS::NoValue
           - CidrIp: !Ref PortalAllowedIPCIDR
@@ -447,7 +446,7 @@ Resources:
               - !Ref OpenOnDemandSecrets
               - !If [ UseSlurmAccountingDB, !Ref SlurmAccountingDBSecret, !Ref AWS::NoValue ]
           - Effect: Allow
-            Action: 
+            Action:
               - secretsmanager:GetSecretValue
               - secretsmanager:PutSecretValue
             Resource:
@@ -486,12 +485,12 @@ Resources:
             Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
           - Effect: Allow
             Sid: AllowAccessToPCSSecret
-            Action: 
+            Action:
               - secretsmanager:GetSecretValue
             Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:pcs!*
           - Effect: Allow
             Sid: AllowAccessToPCS
-            Action: 
+            Action:
               - pcs:GetCluster
             Resource: !Sub arn:${AWS::Partition}:pcs:${AWS::Region}:${AWS::AccountId}:cluster/*
 
@@ -518,7 +517,7 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: 
+                Action:
                   - pcs:GetCluster
                 Resource: !Sub arn:${AWS::Partition}:pcs:${AWS::Region}:${AWS::AccountId}:cluster/*
       Tags:
@@ -576,7 +575,7 @@ Resources:
             /etc/ood-install: !Sub https://github.com/aws-samples/open-on-demand-on-aws/archive/refs/heads/${Branch}.zip
           files: # Creates a file with appropriate variables for use in scripts. No secrets in here
             /etc/ood-install/set_variables.sh:
-              content: !Sub 
+              content: !Sub
                 - |
                   export AD_SECRET_ID=${OpenOnDemandSecrets}
                   export AD_PASSWORD=${ADAdministratorSecret}
@@ -626,7 +625,7 @@ Resources:
             1_install_munge:
               command: |
                 . /etc/ood-install/set_variables.sh
-                ./install_munge.sh 
+                ./install_munge.sh
               cwd: !Sub /etc/ood-install/open-on-demand-on-aws-${Branch}/scripts
             2_install_slurm:
               command: |
@@ -665,7 +664,7 @@ Resources:
         SecurityGroupIds:
           - !Ref PortalSecurityGroup
           - !Ref EfsClientSecurityGroup
-          - !If 
+          - !If
             - HasPCSClusterSecurityGroup
             - !Ref PCSClusterSecurityGroup
             - !Ref AWS::NoValue
@@ -680,7 +679,7 @@ Resources:
 
             # Call cfn-init script to install files and packages
             /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configsets config
-            
+
             # Signal the stack that the instance is ready
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource OODServerASG --region ${AWS::Region}
   OODServerASG:
@@ -708,7 +707,7 @@ Resources:
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT20M
+        Timeout: PT30M
     UpdatePolicy:
       AutoScalingRollingUpdate:
         PauseTime: PT15M
@@ -759,7 +758,7 @@ Resources:
           FromPort: 2049
           ToPort: 2049
           DestinationSecurityGroupId: !GetAtt HeadNodeSecurityGroup.GroupId
-        - IpProtocol: tcp 
+        - IpProtocol: tcp
           Description: Egress rule for ComputeNodeSecurityGroup
           FromPort: 2049
           ToPort: 2049
@@ -865,7 +864,7 @@ Resources:
           Value: portal-alb
         - Key: idle_timeout.timeout_seconds # Required to address issue with OOD SSH timeout
           Value: 600
-          
+
 
   OpenOnDemandTargetGroupHTTPS:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -907,7 +906,7 @@ Resources:
       Port: 443
       Protocol: "HTTPS"
       SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
-      
+
   OpenOnDemandListenerHTTP:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Condition: UseHTTP
@@ -938,7 +937,7 @@ Resources:
         EventBridgeConfiguration:
           EventBridgeEnabled: true
       ObjectLockEnabled: false
-      
+
 
   ClusterConfigBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -1002,7 +1001,7 @@ Resources:
           - "Object Created"
         detail:
           bucket:
-            name: 
+            name:
               - !Ref ClusterConfigBucket
           object:
             key:
@@ -1078,7 +1077,7 @@ Resources:
           - "Object Created"
         detail:
           bucket:
-            name: 
+            name:
               - !Ref ClusterConfigBucket
           object:
             key:
@@ -1166,7 +1165,7 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Action: 
+            Action:
               - secretsmanager:GetSecretValue
               - secretsmanager:DescribeSecret
             Resource:
