@@ -487,15 +487,14 @@ Resources:
               echo "Installing turbovnc" >> /var/log/configure_desktop.log
               yum install turbovnc -y
 
-              amazon-linux-extras install python3.8
-              ln -sf /usr/bin/python3.8 /usr/bin/python3
+              dnf install -y python3-pip
 
               echo "Installing pip packages" >> /var/log/configure_desktop.log
               pip3 install --no-input websockify
               pip3 install --no-input jupyter
 
-              echo "Installing mate-desktop1.x" >> /var/log/configure_desktop.log
-              amazon-linux-extras install mate-desktop1.x -y
+              echo "Installing GNOME desktop" >> /var/log/configure_desktop.log
+              dnf groupinstall "Desktop" -y
 
               echo "Updating bashrc" >> /var/log/configure_desktop.log
               cat >> /etc/bashrc << 'EOF'
