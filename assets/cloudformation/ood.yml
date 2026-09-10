@@ -831,16 +831,18 @@ Resources:
 
   MountTargetResource1:
     Type: AWS::EFS::MountTarget
+    Condition: CreateEFSFileSystem
     Properties:
-      FileSystemId: !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
+      FileSystemId: !GetAtt SharedFileSystem.Arn
       SubnetId: !Select [0, !Ref PrivateSubnets]
       SecurityGroups:
         - !Ref MountTargetSecurityGroup
 
   MountTargetResource2:
     Type: AWS::EFS::MountTarget
+    Condition: CreateEFSFileSystem
     Properties:
-      FileSystemId: !If [ CreateEFSFileSystem, !GetAtt SharedFileSystem.Arn, !Ref EFSFileSystemArn ]
+      FileSystemId: !GetAtt SharedFileSystem.Arn
       SubnetId: !Select [1, !Ref PrivateSubnets]
       SecurityGroups:
         - !Ref MountTargetSecurityGroup
