@@ -672,13 +672,20 @@ Resources:
           Enabled: true
         UserData:
           Fn::Base64: !Sub |
-            #!/bin/bash -e
+            #!/bin/bash
             set -o pipefail
             exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
             yum update -y aws-cfn-bootstrap
 
+            # Signal failure to the ASG and exit
+            function error_exit {
+              echo "$1" 1>&2
+              /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource OODServerASG --region ${AWS::Region}
+              exit 1
+            }
+
             # Call cfn-init script to install files and packages
-            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configsets config
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource OpenOnDemandLaunchTemplate --region ${AWS::Region} --configsets config || error_exit 'Failed to run cfn-init'
 
             # Signal the stack that the instance is ready
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource OODServerASG --region ${AWS::Region}
@@ -689,7 +696,7 @@ Resources:
       MaxSize: "1"
       DesiredCapacity: "1"
       HealthCheckType: ELB
-      HealthCheckGracePeriod: 600
+      HealthCheckGracePeriod: 900
       MetricsCollection:
         - Granularity: 1Minute
       LaunchTemplate:
@@ -710,7 +717,7 @@ Resources:
         Timeout: PT30M
     UpdatePolicy:
       AutoScalingRollingUpdate:
-        PauseTime: PT15M
+        PauseTime: PT30M
         WaitOnResourceSignals: true
 
   #########################################################
