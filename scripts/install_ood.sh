@@ -204,6 +204,10 @@ chmod +x /etc/ood/add_user.sh
 #chmod +x /shared/copy_users.sh
 #chmod o+w /shared/userlistfile
 
+# OOD 4.1+ requires an explicit oidc_crypto_passphrase when dex/OIDC is enabled;
+# without it update_ood_portal fails and the Apache config is never (re)generated.
+echo "oidc_crypto_passphrase: '$(openssl rand -hex 32)'" >> /etc/ood/config/ood_portal.yml
+
 /opt/ood/ood-portal-generator/sbin/update_ood_portal
 systemctl enable httpd
 systemctl enable ondemand-dex
