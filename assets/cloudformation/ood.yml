@@ -19,6 +19,7 @@ Metadata:
           default: Networking
         Parameters:
           - VPC
+          - VpcCidr
           - PublicSubnets
           - PrivateSubnets
           - PCSClusterSecurityGroup
