@@ -534,6 +534,9 @@ Outputs:
   VPCId:
     Description: VPC ID
     Value: !Ref VPC
+  VPCCidr:
+    Description: VPC CIDR block
+    Value: !GetAtt VPC.CidrBlock
   HPCClusterSecurityGroup:
     Description: Cluster Security Group
     Value: !Ref ClusterSecurityGroup

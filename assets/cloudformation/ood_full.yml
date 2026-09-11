@@ -100,6 +100,7 @@ Resources:
     Properties:
       Parameters:
         VPC: !GetAtt [ OODInfra, Outputs.VPCId ]
+        VpcCidr: !GetAtt [ OODInfra, Outputs.VPCCidr ]
         PublicSubnets: !GetAtt [ OODInfra, Outputs.PublicSubnets ]
         PrivateSubnets: !GetAtt [ OODInfra, Outputs.PrivateSubnets ]
         PCSClusterSecurityGroup: !GetAtt [ OODInfra, Outputs.HPCClusterSecurityGroup ]

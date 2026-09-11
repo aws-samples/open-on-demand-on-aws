@@ -91,6 +91,11 @@ Parameters:
     Description: VPC to deploy the portal
     Type: AWS::EC2::VPC::Id
     ConstraintDescription: must be a valid VPC Id
+  VpcCidr:
+    Description: CIDR block of the VPC, used for portal egress to in-VPC services (e.g. the LDAP NLB)
+    Type: String
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid CIDR range of the form x.x.x.x/x.
   PublicSubnets:
     Description: Public subnets
     Type: List<AWS::EC2::Subnet::Id>
@@ -254,7 +259,7 @@ Resources:
           FromPort: 80
           ToPort: 80
           Description: Allow outbound 80 traffic to download packages
-        - CidrIp: 10.0.0.0/16
+        - CidrIp: !Ref VpcCidr
           IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -291,7 +296,7 @@ Resources:
       ToPort: 389
       Description: Allows outbound from portal to LDAP in VPC CIDR
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 10.0.0.0/16
+      CidrIp: !Ref VpcCidr
 
   PortalHeadNodeLDAPUDPEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -301,7 +306,7 @@ Resources:
       ToPort: 389
       Description: Allows outbound from portal to LDAP
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 10.0.0.0/16
+      CidrIp: !Ref VpcCidr
 
   PortalHeadNodeLDAPDNSEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -311,7 +316,7 @@ Resources:
       ToPort: 53
       Description: Allows outbound from portal to LDAP
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 10.0.0.0/16
+      CidrIp: !Ref VpcCidr
 
   PortalHeadNodeLDAP464Egress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -321,7 +326,7 @@ Resources:
       ToPort: 464
       Description: Allows outbound from portal to LDAP
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 10.0.0.0/16
+      CidrIp: !Ref VpcCidr
 
   PortalHeadNodeLDAPDNSUDPEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -331,7 +336,7 @@ Resources:
       ToPort: 53
       Description: Allows outbound from portal to LDAP
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 10.0.0.0/16
+      CidrIp: !Ref VpcCidr
 
   PortalHeadNodeLDAPPingUDPEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -341,7 +346,7 @@ Resources:
       ToPort: 88
       Description: Allows outbound from portal to LDAP
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 10.0.0.0/16
+      CidrIp: !Ref VpcCidr
 
   PortalHeadNodeLDAPKerberosTCPEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -351,7 +356,7 @@ Resources:
       ToPort: 88
       Description: Allows outbound from portal to LDAP
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 10.0.0.0/16
+      CidrIp: !Ref VpcCidr
 
   PortalHeadNodeSSHEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -371,7 +376,7 @@ Resources:
       ToPort: 22
       Description: Allows outbound from portal to NLB for Login Nodes
       GroupId: !GetAtt PortalSecurityGroup.GroupId
-      CidrIp: 10.0.0.0/16
+      CidrIp: !Ref VpcCidr
 
   PortalComputeNodeEgress:
     Type: AWS::EC2::SecurityGroupEgress

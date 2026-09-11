@@ -56,6 +56,13 @@ for param in "${REQUIRED_PARAMS[@]}"; do
     fi
 done
 
+# Derive the VPC CIDR from the VPC id so portal egress rules aren't hardcoded
+VPC_CIDR=$(aws ec2 describe-vpcs --vpc-ids "$VPC" --query 'Vpcs[0].CidrBlock' --output text)
+if [[ -z "$VPC_CIDR" || "$VPC_CIDR" == "None" ]]; then
+    echo "Error: could not determine CIDR block for VPC $VPC"
+    exit 1
+fi
+
 aws cloudformation deploy \
 --template-file assets/cloudformation/ood.yml \
 --stack-name $STACK_NAME \
@@ -64,6 +71,7 @@ aws cloudformation deploy \
 --disable-rollback \
 --parameter-overrides \
     VPC="$VPC" \
+    VpcCidr="$VPC_CIDR" \
     PublicSubnets="$PUBLIC_SUBNETS" \
     PrivateSubnets="$PRIVATE_SUBNETS" \
     LoadBalancerLogBucket="${LOAD_BALANCER_LOG_BUCKET:-}" \
