@@ -16,7 +16,7 @@ export REGION=${2:-"us-east-1"}
 export AD_DOMAIN=${3:-"DC=hpclab,DC=local"}
 PCLUSTER_FILENAME="pcluster-config.yml"
 
-# Generate help 
+# Generate help
 if [ "$1" == "--help" ]; then
   echo "Usage: $0 <stack-name> [region] [ad_domain]"
   echo "  stack-name: The name of the stack you deployed"
@@ -32,7 +32,7 @@ if ! aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGIO
 fi
 
 echo "[-] Reading outputs from stack '$STACK_NAME' in region '$REGION'..."
-export OOD_STACK=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION) 
+export OOD_STACK=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION)
 export AD_SECRET_ARN=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="ADAdministratorSecretARN") | .OutputValue')
 export SUBNETS=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="PrivateSubnets") | .OutputValue')
 export HEAD_SG=$(echo "$OOD_STACK" | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="HeadNodeSecurityGroup") | .OutputValue')
@@ -54,7 +54,7 @@ export RDS_PORT=$(echo $RDS_SECRET | jq -r ".port")
 export RDS_DBNAME=$(echo $RDS_SECRET | jq -r ".dbname")
 export SLURM_ACCOUNTING_DB_SECRET_ARN=$(echo $OOD_STACK | jq -r '.Stacks[].Outputs[] | select(.OutputKey=="SlurmAccountingDBSecretPassword") | .OutputValue')
 
-cat << EOF 
+cat << EOF
 [+] Using the following values to generate $PCLUSTER_FILENAME
   STACK_NAME                  $STACK_NAME
   REGION                      $REGION
@@ -194,7 +194,7 @@ LoginNodes:
       Count: 1
       InstanceType: c5.large
       Networking:
-        SubnetIds: 
+        SubnetIds:
           - ${subnets[0]}
         AdditionalSecurityGroups:
           - $COMPUTE_SG
@@ -219,7 +219,7 @@ SharedStorage:
       FileSystemId: ${SHARED_FILESYSTEMID}
 Region: $REGION
 Image:
-  Os: alinux2
+  Os: alinux2023
 DirectoryService:
   DomainName: $AD_DOMAIN
   DomainAddr: ldap://$LDAP_ENDPOINT
