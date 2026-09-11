@@ -17,6 +17,8 @@
 - DCV is license-free on EC2; no license server.
 - Do not modify the applied VNC/GNOME fallback on `ood-upgrades-2026-09`; this work lives only on `feat/ood-dcv-integration`.
 - Reference implementation: `aws-samples/openondemand-dcv` (written for OOD 3.0/3.1, ALB-based — adapt to 4.2 + reverse proxy).
+- **Desktop stack layering** (per the AWS DCV Linux prerequisites — this is the documented, supported combo, not a workaround): `nice-xdcv` is the **virtual X server** that provides the display for headless/virtual sessions; GNOME via `dnf groupinstall "Desktop"` is the **desktop environment** that runs on it. They are different layers — both are required; `nice-xdcv` does not replace GNOME. GNOME-over-DCV is fully supported (the "GNOME is fragile on virtual X" caveat applies to plain VNC, not DCV, whose `Xdcv` server is built for it).
+- **Virtual-session runtime** (non-GPU): DCV virtual sessions do **not** need Xorg, the XDummy driver, or a desktop manager (GDM) — `Xdcv` is the X server. Keep the node at `multi-user.target` (do **not** set `graphical.target`); with GDM not running, the Wayland-disable step is moot. Install `glx-utils` + Mesa for software OpenGL; add `nice-dcv-gl` only if the `desktop` queue moves to GPU instances.
 
 ---
 
@@ -29,6 +31,60 @@
 - `assets/ood-dcv/bc_desktop/manifest.yml` (create) — app manifest.
 - `assets/ood-dcv/bc_desktop/info.html.erb` (create) — Connect buttons using the reverse-proxy URL.
 - `scripts/install_ood.sh` (modify) — install `dcv.rb` into the gem path + install `bc_desktop`; add an upgrade-safe re-copy hook; adjust `ood_portal.yml` (host_regex, SSLProxyCheckPeer for DCV's self-signed cert).
+- `scripts/configure_cluster_for_ood.sh` (modify) — the per-cluster `bc_desktop` config generator; today it hardcodes `desktop: "mate"`. This is the authoritative place OOD reads the desktop env + queue, so DCV wiring must land here (see Review Gap 1).
+- `assets/cloudformation/pcs-starter.yml` (modify) — the **live** desktop-node bootstrap is the inline `PCSDesktopNodeLaunchTemplate` UserData (turbovnc/mate via `amazon-linux-extras` — which does not exist on AL2023), not the standalone script (see Review Gap 2).
+
+---
+
+## Review findings (2026-09-10) — required changes before/within execution
+
+A repo cross-check found three **blocking gaps** the task list misses, plus concrete bugs. Address these where noted; Gaps 1–3 should be resolved (or their choice recorded) as part of the **Task 1 gate**, since they change what Tasks 2/4/5/7 write.
+
+### Gap 1 — `configure_cluster_for_ood.sh` owns the real `bc_desktop` config
+
+`configure_cluster_for_ood.sh` generates `/etc/ood/config/apps/bc_desktop/<cluster>.yml` with `desktop: "mate"`, `bc_queue: "desktop"`, `cluster: <name>`. OOD merges this cluster file with the app dir; the app-level `form.yml`/`submit.yml.erb` from Tasks 4–5 do **not** override the `desktop`/`cluster`/queue coming from here. As written, the deployed desktop still runs MATE.
+
+Also note the semantic split the plan conflates: **`desktop:`** selects the desktop *environment* template (`mate`/`gnome`/`xfce` → `template/desktops/<name>.yml.erb`), while **`batch_connect.template:`** selects the *connection* mechanism (`vnc`/`dcv`). So `desktop: "dcv"` (Task 4 `form.yml`) is wrong — `dcv` is a connection template, not a desktop env; it would look for a non-existent `template/desktops/dcv.yml.erb`.
+
+**Suggestion:** make `configure_cluster_for_ood.sh` the single owner of the cluster-specific DCV wiring and drop the per-cluster `submit.yml.erb` from Task 5. Change the here-doc to:
+
+```yaml
+---
+title: "Linux Desktop (DCV) on ${cluster_name}"
+cluster: "${cluster_name}"
+attributes:
+  desktop: "gnome"          # environment installed in Task 2 (dnf groupinstall "Desktop")
+  bc_queue: "desktop"
+  account: "enduser-research-account"
+batch_connect:
+  template: "dcv"           # connection mechanism (the ported dcv.rb)
+  set_host: "host=<chosen-host-form>"   # see Gap 3
+```
+
+Then Task 4's `form.yml` should set `desktop: "gnome"` (not `"dcv"`), and Task 5 becomes "confirm the `batch_connect` block lives in the generated cluster file" rather than installing a separate `submit.yml.erb`.
+
+### Gap 2 — two desktop-node bootstrap paths; the live one is inline in `pcs-starter.yml`
+
+Task 2 rewrites `scripts/pcluster_worker_node_desktop.sh`, but the `desktop` queue (`PCSNodeGroupDesktop`) runs `PCSDesktopNodeLaunchTemplate`, whose **inline UserData** (pcs-starter.yml ~471-508) installs turbovnc + `amazon-linux-extras install mate-desktop1.x` — commands that do not exist on AL2023. Editing only the standalone script leaves this dead.
+
+**Suggestion (preferred):** collapse to a single source. Have the `PCSDesktopNodeLaunchTemplate` UserData `curl` and run `pcluster_worker_node_desktop.sh` from the cluster-config S3 bucket (the mechanism `pcs-starter.yml` already uses for other assets), then Task 2 edits only the script. If a refactor is out of scope, **Task 2 must instead edit the inline UserData in `pcs-starter.yml`** (replace the turbovnc/`amazon-linux-extras` block with the DCV+GNOME `dnf` install) and treat the standalone script as legacy/retired. Either way, verify which path the deployed cluster actually uses before writing code.
+
+### Gap 3 — `set_host` / `web-url-path` / `host_regex` must use one consistent host form
+
+The reverse proxy resolves the node by the `set_host` value; `web-url-path` (Task 2) and `host_regex` (Task 7) must match it exactly. Today VNC uses `set_host: "host=$(hostname ...).<cluster>.pcluster"` (the ParallelCluster `.pcluster` DNS the portal already resolves for SSH), but the plan's DCV `set_host`/`web-url-path` use `hostname -f` = `.ec2.internal`, and `host_regex` targets `.ec2.internal` with a hardcoded `10.50` octet.
+
+**Suggestion:** reuse the form that already works for VNC — `.<cluster>.pcluster` — everywhere, and pick it in Task 1:
+- `set_host: "host=$(hostname -s).<%= cluster %>.pcluster"` (in the Gap-1 cluster file)
+- Task 2 `web-url-path`: `/rnode/$(hostname -s).<CLUSTER>.pcluster/8443` (derive `<CLUSTER>` on the node)
+- Task 7 `host_regex`: domain-scoped, **not** CIDR-scoped — e.g. `'[^/]+\.pcluster'` (tightens the current `'[^/]+'` without repeating the hardcoded-CIDR anti-pattern we just removed elsewhere).
+
+Confirm in Task 1 that the portal's `mod_ood_proxy` resolves the chosen name and that DCV's `web-url-path` prefix matches byte-for-byte.
+
+### Concrete bugs (fix inline in the noted tasks)
+
+- **Task 4/5 — invalid Slurm `-t` values.** `2h`/`4h`/`8h`/`1d` are not valid Slurm time formats and will fail submission. Use `HH:MM:SS` / `D-HH:MM:SS` (fixed inline below).
+- **Task 7 Step 3 — `SSLProxyCheckPeer* off` is global.** A server-wide drop-in disables TLS peer verification for every proxied backend. Scope it to the rnode proxy via a `<Proxy>`/`<Location "/rnode">` block instead of a bare `conf.d` file.
+- **Task 7 Step 4 — `host_regex` hardcodes `10.50`.** See Gap 3; make it domain-scoped, not IP-scoped.
 
 ---
 
@@ -125,11 +181,13 @@ set -euo pipefail
 LOG=/var/log/configure_desktop.log
 
 echo "[-] Installing base packages" >> "$LOG"
-dnf install -y jq nmap-ncat crudini
+# glx-utils provides glxinfo for verifying (software) OpenGL rendering on non-GPU nodes
+dnf install -y jq nmap-ncat crudini glx-utils
 
 # Add spack-users group
 groupadd spack-users -g 4000 || true
 
+# Desktop ENVIRONMENT (GNOME). nice-xdcv (below) is the virtual X server, not a DE — both are needed.
 echo "[-] Installing GNOME desktop" >> "$LOG"
 dnf groupinstall "Desktop" -y
 
@@ -149,6 +207,12 @@ HOST_FQDN=$(hostname -f)
 crudini --set /etc/dcv/dcv.conf connectivity web-url-path "\"/rnode/${HOST_FQDN}/8443\""
 
 systemctl enable --now dcvserver dcvsimpleextauth
+
+# Virtual sessions use Xdcv as the X server — no Xorg/XDummy/GDM needed.
+# Keep the node in multi-user mode; do NOT switch to graphical.target (avoids GDM/Wayland issues).
+echo "[-] Setting multi-user.target for virtual DCV sessions" >> "$LOG"
+systemctl set-default multi-user.target
+systemctl isolate multi-user.target || true
 
 echo "[-] Updating bashrc" >> "$LOG"
 cat >> /etc/bashrc << 'EOF'
@@ -290,15 +354,15 @@ git commit -m "feat: add DCV batch-connect template for reverse proxy"
 ```yaml
 ---
 attributes:
-  desktop: "dcv"
+  desktop: "gnome"          # desktop ENVIRONMENT (see Review Gap 1); connection = dcv via batch_connect.template
   session_timeout:
     widget: select
     label: "Session timeout"
-    options:
-      - [ "2 hours", "2h" ]
-      - [ "4 hours", "4h" ]
-      - [ "8 hours", "8h" ]
-      - [ "1 day", "1d" ]
+    options:                # values are Slurm -t format: HH:MM:SS / D-HH:MM:SS (see Bugs)
+      - [ "2 hours", "02:00:00" ]
+      - [ "4 hours", "04:00:00" ]
+      - [ "8 hours", "08:00:00" ]
+      - [ "1 day", "1-00:00:00" ]
 form:
   - desktop
   - session_timeout
@@ -327,6 +391,8 @@ git commit -m "feat: add DCV bc_desktop form and manifest"
 ---
 
 ## Task 5: `bc_desktop` submit script (Slurm + set_host)
+
+> **Review Gap 1:** per the finding above, the `batch_connect` (`template: dcv`, `set_host`) block should live in the per-cluster file emitted by `configure_cluster_for_ood.sh`, which is the authoritative owner. If you take that route, this task becomes "verify the generated cluster file carries the block" rather than installing a separate app-level `submit.yml.erb`. Do not maintain both. Use the Gap-3 host form in `set_host`, and Slurm `-t` values in `HH:MM:SS` format.
 
 **Files:**
 - Create: `assets/ood-dcv/bc_desktop/submit.yml.erb`
@@ -452,21 +518,28 @@ install -m 0644 "${REPO_DIR}/assets/ood-dcv/bc_desktop/info.html.erb"   /var/www
 
 Use the exact directives confirmed in Task 1. Append to the OOD reverse-proxy Apache config (the file that carries the `mod_ood_proxy` / rnode config; typically generated from `ood_portal.yml`). Add via `ood_portal.yml`'s custom directives if available, else drop-in:
 
+> **Review bug:** a bare `conf.d` file applies these server-wide, disabling TLS peer verification for **every** proxied backend. Scope them to the rnode proxy instead:
+
 ```bash
 cat > /etc/httpd/conf.d/ood-dcv-proxy.conf <<'EOF'
-SSLProxyEngine on
-SSLProxyCheckPeerName off
-SSLProxyCheckPeerCN off
-SSLProxyCheckPeerExpire off
+<Location "/rnode">
+    SSLProxyEngine on
+    SSLProxyCheckPeerName off
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerExpire off
+</Location>
 EOF
 ```
 
+Prefer expressing this through `ood_portal.yml` custom directives if the generator supports scoping, so `update_ood_portal` owns the file.
+
 - [ ] **Step 4: Tighten `host_regex` in `ood_portal.yml`**
 
-The current `host_regex: '[^/]+'` (install_ood.sh:102) is wide open. Restrict to cluster private-subnet EC2 hostnames:
+The current `host_regex: '[^/]+'` (install_ood.sh:102) is wide open. Restrict it — but **domain-scoped, not CIDR-scoped** (Review Gap 3): hardcoding a `10.50` octet repeats the anti-pattern just removed elsewhere and won't survive a different VPC CIDR. Match the host form chosen in Gap 3 (`.pcluster` recommended):
 
 ```bash
-sed -i "s|^host_regex:.*|host_regex: 'ip-10-50-[0-9-]+\\\\.ec2\\\\.internal'|" /etc/ood/config/ood_portal.yml
+# .pcluster host form (matches set_host / web-url-path from Gap 3)
+sed -i "s|^host_regex:.*|host_regex: '[^/]+\\\\.pcluster'|" /etc/ood/config/ood_portal.yml
 ```
 
 Then regenerate + reload:
