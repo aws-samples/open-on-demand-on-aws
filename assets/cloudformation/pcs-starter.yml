@@ -64,10 +64,10 @@ Parameters:
     Description: Processor architecture for the login and compute node instances
   SlurmVersion:
     Type: String
-    Default: 24.11
+    Default: 25.11
     Description: Version of Slurm to use
     AllowedValues:
-         - 24.11
+         - 25.11
   DomainName:
     Type: String
     Description: Domain name
@@ -711,7 +711,7 @@ Resources:
     Type: Custom::AMILookup
     Properties:
       ServiceToken: !GetAtt PcsAMILookupFn.Arn
-      OperatingSystem: 'amzn2'
+      OperatingSystem: 'al2023'
       Architecture: !FindInMap [ Architecture, AmiArchParameter, !Ref NodeArchitecture ]
       SlurmVersion: !Ref SlurmVersion
 
