@@ -70,6 +70,61 @@ All in one deployment including **infrastructure** and **Open OnDemand**
 2. Deploy Slurm Accounting Database (_only if integrating with ParallelCluster_): [slurm_accounting_db.yml](assets/cloudformation/slurm_accounting_db.yml)
 3. Deploy Open OnDemand: [ood.yml](assets/cloudformation/ood.yml)
 
+#### Using the deploy.sh Script
+
+For simplified deployment of the Open OnDemand stack (step 3 above), you can use the `deploy.sh` script with environment-specific configuration files:
+
+**1. Create a configuration file:**
+
+```bash
+# Copy the example configuration
+cp .config-example.env .configs/dev.env
+
+# Edit the configuration file with your environment details
+# Required parameters: STACK_NAME, VPC, PUBLIC_SUBNETS, PRIVATE_SUBNETS,
+# AD_ADMIN_SECRET_ARN, LDAP_NLB_ENDPOINT, EFS_FILESYSTEM_ID, 
+# EFS_FILESYSTEM_ARN, BRANCH, SLURM_VERSION
+```
+
+**2. Deploy using the script:**
+
+```bash
+# Deploy using environment name (looks for .configs/<env>.env)
+ENV=dev ./deploy.sh
+
+# Or specify a custom config file path
+CONFIG_FILE=.configs/custom.env ./deploy.sh
+```
+
+The script will:
+- Validate all required parameters are set
+- Deploy the CloudFormation stack using `aws cloudformation deploy`
+- Pass all configured parameters to the stack
+
+**Example configuration parameters:**
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| STACK_NAME | CloudFormation stack name | Yes |
+| VPC | VPC ID for deployment | Yes |
+| PUBLIC_SUBNETS | Comma-separated list of public subnet IDs | Yes |
+| PRIVATE_SUBNETS | Comma-separated list of private subnet IDs | Yes |
+| AD_ADMIN_SECRET_ARN | Secrets Manager ARN for AD admin password | Yes |
+| LDAP_NLB_ENDPOINT | Network Load Balancer endpoint for LDAP | Yes |
+| EFS_FILESYSTEM_ID | EFS filesystem ID for shared storage | Yes |
+| EFS_FILESYSTEM_ARN | EFS filesystem ARN | Yes |
+| SLURM_VERSION | Version of Slurm to install | Yes |
+| BRANCH | Git branch to deploy from | Yes |
+| WEBSITE_DOMAIN_NAME | Custom domain name (optional) | No |
+| HOSTED_ZONE_ID | Route53 Hosted Zone ID (optional) | No |
+| PCS_CLUSTER_SECURITY_GROUP | AWS PCS cluster security group (optional) | No |
+
+See [.config-example.env](.config-example.env) for a complete list of available parameters and their descriptions.
+
+#### Manual CloudFormation Deployment
+
+Alternatively, you can deploy the stack manually via AWS CLI or Console with the following parameters:
+
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | DomainName | Domain name not including the top level domain | hpclab |
@@ -456,6 +511,96 @@ Once restarted check the available clusters to verify the cluster is listed.
 ```bash
 sacctmgr list clusters
 ```
+
+## 🗑️ Uninstalling
+
+To completely remove the Open OnDemand deployment, follow these steps in order:
+
+### 1. Delete any ParallelCluster or AWS PCS clusters
+
+Before uninstalling Open OnDemand, delete any integrated ParallelCluster or AWS PCS clusters:
+
+```bash
+# For ParallelCluster
+pcluster delete-cluster --cluster-name <your-cluster-name>
+
+# For AWS PCS
+# Delete via AWS Console or CLI
+```
+
+### 2. Remove ALB Deletion Protection
+
+The Application Load Balancer (ALB) has deletion protection enabled by default. You must disable it before the CloudFormation stack can be deleted:
+
+```bash
+# Get the ALB ARN from CloudFormation outputs
+OOD_STACK_NAME="<your-ood-stack-name>"
+ALB_ARN=$(aws cloudformation describe-stacks \
+  --stack-name $OOD_STACK_NAME \
+  --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerArn`].OutputValue' \
+  --output text)
+
+# Disable deletion protection
+aws elbv2 modify-load-balancer-attributes \
+  --load-balancer-arn $ALB_ARN \
+  --attributes Key=deletion_protection.enabled,Value=false
+```
+
+### 3. Empty the Cluster Configuration S3 Bucket
+
+The `ClusterConfigBucket` must be emptied before the CloudFormation stack can be deleted:
+
+```bash
+# Get the bucket name from CloudFormation outputs
+CLUSTER_CONFIG_BUCKET=$(aws cloudformation describe-stacks \
+  --stack-name $OOD_STACK_NAME \
+  --query 'Stacks[0].Outputs[?OutputKey==`ClusterConfigBucket`].OutputValue' \
+  --output text)
+
+# Empty the bucket
+aws s3 rm s3://$CLUSTER_CONFIG_BUCKET --recursive
+```
+
+### 4. Delete CloudFormation Stacks
+
+Delete the CloudFormation stacks in reverse order of deployment:
+
+**For All-in-one Deployment:**
+
+```bash
+# Delete the main stack
+aws cloudformation delete-stack --stack-name $OOD_STACK_NAME
+
+# Wait for deletion to complete
+aws cloudformation wait stack-delete-complete --stack-name $OOD_STACK_NAME
+```
+
+**For Modular Deployment:**
+
+```bash
+# Delete stacks in reverse order
+aws cloudformation delete-stack --stack-name <ood-stack-name>
+aws cloudformation wait stack-delete-complete --stack-name <ood-stack-name>
+
+aws cloudformation delete-stack --stack-name <slurm-accounting-db-stack-name>
+aws cloudformation wait stack-delete-complete --stack-name <slurm-accounting-db-stack-name>
+
+aws cloudformation delete-stack --stack-name <infra-stack-name>
+aws cloudformation wait stack-delete-complete --stack-name <infra-stack-name>
+```
+
+### 5. (Optional) Clean up Deployment Assets
+
+If you no longer need the deployment assets:
+
+```bash
+# List and delete the deployment assets bucket
+DEPLOYMENT_ASSET_BUCKET="<your-deployment-asset-bucket-name>"
+aws s3 rm s3://$DEPLOYMENT_ASSET_BUCKET --recursive
+aws s3 rb s3://$DEPLOYMENT_ASSET_BUCKET
+```
+
+> **Note:** Make sure all resources are deleted before removing the deployment assets bucket, in case you need to reference the templates.
 
 ## 🤝 Contributing
 

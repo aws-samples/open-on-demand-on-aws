@@ -9,8 +9,8 @@ systemctl restart httpd
 wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq &&\
 chmod +x /usr/bin/yq
 
-wget -O /tmp/ondemand-release-web-4.0-1.amzn2023.noarch.rpm https://yum.osc.edu/ondemand/4.0/ondemand-release-web-4.0-1.amzn2023.noarch.rpm
-dnf install /tmp/ondemand-release-web-4.0-1.amzn2023.noarch.rpm -yq
+wget -O /tmp/ondemand-release-web-4.2-1.amzn2023.noarch.rpm https://yum.osc.edu/ondemand/4.2/ondemand-release-web-4.2-1.amzn2023.noarch.rpm
+dnf install /tmp/ondemand-release-web-4.2-1.amzn2023.noarch.rpm -yq
 dnf update -yq
 dnf install ondemand ondemand-dex krb5-workstation samba -yq
 
@@ -107,7 +107,7 @@ EOF
 if [ "$OOD_HTTP" = "true" ]; then
   sed -i "s/ssl: true/ssl: false/" /etc/ood/config/ood_portal.yml
 
-  # Modify the myjobs initializer 
+  # Modify the myjobs initializer
   # change the session store to address CRSF errors when using HTTP
   mkdir -p /etc/ood/config/apps/myjobs/initializers
   # Modify the myjobs initializer in /var/www/ood/apps/sys/myjobs/config/initializers/session_store.rb
@@ -203,6 +203,10 @@ echo "user_map_cmd: '/etc/ood/add_user.sh'" >> /etc/ood/config/ood_portal.yml
 chmod +x /etc/ood/add_user.sh
 #chmod +x /shared/copy_users.sh
 #chmod o+w /shared/userlistfile
+
+# OOD 4.1+ requires an explicit oidc_crypto_passphrase when dex/OIDC is enabled;
+# without it update_ood_portal fails and the Apache config is never (re)generated.
+echo "oidc_crypto_passphrase: '$(openssl rand -hex 32)'" >> /etc/ood/config/ood_portal.yml
 
 /opt/ood/ood-portal-generator/sbin/update_ood_portal
 systemctl enable httpd
