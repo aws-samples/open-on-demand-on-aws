@@ -56,7 +56,12 @@ Resources:
       BacktrackWindow: 86400 # Sets backtrack to 24 hours
       BackupRetentionPeriod: 7 # Ensures daily snapshots are taken
       Engine: aurora-mysql
-      EngineMode: global
+      # Aurora MySQL 8.0 (v3): required for the REGEXP_REPLACE() that newer Slurm's
+      # slurmdbd probes at startup. Without a pinned version RDS defaults to a 5.7
+      # (v2) engine, which lacks REGEXP_REPLACE and makes slurmdbd fatal on boot.
+      EngineVersion: 8.0.mysql_aurora.3.08.2
+      # provisioned (default). The legacy 'global' EngineMode is not supported on v3/8.0.
+      EngineMode: provisioned
       DatabaseName: slurmaccounting
       MasterUsername: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:username}}'
       MasterUserPassword: !Sub '{{resolve:secretsmanager:${AuroraMasterSecret}:SecretString:password}}'

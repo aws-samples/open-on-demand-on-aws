@@ -19,9 +19,9 @@ The primary components of the solution are:
 ## 🔄 Compatibility
 
 This solution is compatible with the following HPC service(s) from AWS:
-* AWS ParallelCluster [v3.13.0](https://github.com/aws/aws-parallelcluster/releases/tag/v3.13.0)
+* AWS ParallelCluster [v3.16.0](https://github.com/aws/aws-parallelcluster/releases/tag/v3.16.0)
 * [AWS Parallel Computing Service (AWS PCS)](https://aws.amazon.com/pcs/)
-* Open OnDemand v4.0
+* Open OnDemand v4.2
 
 ## 🚀 Deployment Process
 
@@ -511,6 +511,107 @@ Once restarted check the available clusters to verify the cluster is listed.
 ```bash
 sacctmgr list clusters
 ```
+
+### Slurm accounting DB fails to start (Aurora MySQL 5.7 / `REGEXP_REPLACE`)
+
+When adding a ParallelCluster, the head node's `cfn-init`/Chef run may fail with a generic `Command chef failed`, and `/var/log/chef-client.log` shows the `execute[wait for slurm database]` resource failing because `sacctmgr` gets `Connection refused` on port `6819`. The real cause is that **`slurmdbd` exits on startup**. Check `/var/log/slurmdbd.log`:
+
+```
+accounting_storage/as_mysql: MySQL server version is: 5.7.12
+error: mysql_query failed: 1305 FUNCTION slurmaccounting.REGEXP_REPLACE does not exist
+fatal: _check_regexp_replace: null result from query `SELECT REGEXP_REPLACE('abc123', '[0-9]+', 'X');`
+```
+
+**Cause:** the Slurm version bundled with recent ParallelCluster/AWS PCS releases runs a `REGEXP_REPLACE()` sanity check at `slurmdbd` startup. That function requires **Aurora MySQL 8.0 (v3)** / MySQL 8.0+ / MariaDB 10.2.1+. If the accounting database was created without a pinned `EngineVersion`, RDS defaulted to an Aurora MySQL **5.7 (v2)** engine, which lacks `REGEXP_REPLACE`, so `slurmdbd` never comes up.
+
+**Fix (new deployments):** `assets/cloudformation/slurm_accounting_db.yml` now pins `EngineVersion: 8.0.mysql_aurora.3.08.2` and uses `EngineMode: provisioned` (the legacy `global` mode is not supported on v3). New deployments get a compatible database automatically.
+
+**Check whether you are affected:**
+
+```bash
+aws rds describe-db-clusters \
+  --query "DBClusters[?DatabaseName=='slurmaccounting'].[DBClusterIdentifier,EngineVersion,EngineMode]" \
+  --output table
+```
+
+If `EngineVersion` starts with `5.7` (or reports engine mode `global`), migrate using one of the options below.
+
+#### Migrating an existing accounting database
+
+**Option A — Recreate (recommended if you have no accounting history to keep).**
+Because the mode change (`global` → `provisioned`) and the 5.7 → 8.0 major-version change both require replacing the cluster, and the cluster ships with `DeletionProtection: true`, an in-place stack update will not work. Recreate instead:
+
+```bash
+# 1. Disable deletion protection so the cluster can be replaced/deleted
+aws rds modify-db-cluster --db-cluster-identifier <cluster-id> \
+  --no-deletion-protection --apply-immediately
+
+# 2. Redeploy the accounting-DB stack (or the OOD stack that nests it) with the
+#    updated template. This provisions a fresh Aurora MySQL 8.0 (v3) cluster.
+#    (A final snapshot is taken automatically via DeletionPolicy: Snapshot.)
+
+# 3. Re-run the ParallelCluster / PCS deployment. slurmdbd's REGEXP_REPLACE
+#    check now passes and "wait for slurm database" succeeds.
+```
+
+**Option B — In-place major-version upgrade (preserves accounting data).**
+Aurora MySQL 2 (5.7) → 3 (8.0) is a supported major upgrade, but two things commonly block it. Take a manual snapshot first:
+
+```bash
+aws rds create-db-cluster-snapshot --db-cluster-identifier <cluster-id> \
+  --db-cluster-snapshot-identifier slurmacct-pre-v3-upgrade
+```
+
+**B.1 — Instance class must be supported on v3.** Aurora v3 does not offer `db.t3.small`. If your writer instance is `db.t3.small`, resize it first (`db.t3.medium` is valid on both 5.7 and v3):
+
+```bash
+# Find the writer instance id
+aws rds describe-db-clusters --db-cluster-identifier <cluster-id> \
+  --query 'DBClusters[0].DBClusterMembers[].DBInstanceIdentifier' --output text
+
+aws rds modify-db-instance --db-instance-identifier <writer-instance-id> \
+  --db-instance-class db.t3.medium --apply-immediately
+# wait until the instance is 'available' again
+```
+
+**B.2 — Start the upgrade:**
+
+```bash
+aws rds modify-db-cluster --db-cluster-identifier <cluster-id> \
+  --engine-version 8.0.mysql_aurora.3.08.2 \
+  --allow-major-version-upgrade --apply-immediately
+```
+
+**B.3 — If the cluster returns to `available` still on 5.7, the pre-upgrade check failed.** Check the RDS events / the `upgrade-prechecks.log` (Console → the instance → Logs & events → Logs). A common cause is **stale Slurm stored routines** created by an older Slurm whose definitions fail MySQL 8.0's stricter grammar (`routinesSyntaxCheck` errors like `get_coord_qos`, `get_parent_limits`, `get_lineage`, `set_lineage` in the `slurmaccounting` / `slurm_acct_db` schemas). `slurmdbd` recreates these on startup, so dropping them is safe. From a host that can reach the DB (e.g. the head node):
+
+```bash
+sudo dnf install -y mariadb105   # MySQL client on AL2023
+
+ENDPOINT=<cluster-endpoint>      # aws rds describe-db-clusters ... --query 'DBClusters[0].Endpoint'
+DBPASS=$(aws secretsmanager get-secret-value --region <region> \
+  --secret-id <accounting-db-password-secret> --query SecretString --output text)
+
+mysql -h "$ENDPOINT" -u admin -p"$DBPASS" <<'SQL'
+DROP FUNCTION  IF EXISTS slurm_acct_db.get_coord_qos;
+DROP FUNCTION  IF EXISTS slurm_acct_db.get_parent_limits;
+DROP FUNCTION  IF EXISTS slurmaccounting.get_coord_qos;
+DROP FUNCTION  IF EXISTS slurmaccounting.get_parent_limits;
+DROP PROCEDURE IF EXISTS slurmaccounting.get_lineage;
+DROP PROCEDURE IF EXISTS slurmaccounting.set_lineage;
+SQL
+```
+
+Then re-run the `modify-db-cluster` upgrade from B.2. (If the precheck flags other routines, drop those too — they are all Slurm-managed and recreated on startup.)
+
+**B.4 — After the upgrade reaches `available` + `8.0.mysql_aurora.3.08.2`,** restart `slurmdbd` on the head node and confirm it stays running:
+
+```bash
+sudo systemctl restart slurmdbd
+sudo systemctl status slurmdbd --no-pager
+sudo ss -ltnp | grep 6819   # slurmdbd should be listening
+```
+
+> **Note:** After Option B, also update the deployed stack (or its template parameters) to `EngineVersion: 8.0.mysql_aurora.3.08.2` / `EngineMode: provisioned` so CloudFormation does not report drift or attempt to revert the engine on the next stack operation.
 
 ## 🗑️ Uninstalling
 
