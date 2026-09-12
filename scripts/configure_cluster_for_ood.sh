@@ -30,12 +30,16 @@ EOF
 
   # Add open ondemand desktop configuration
   # This configuration assumes there will be slurm queue called 'desktop'
+  # desktop: selects the desktop ENVIRONMENT template (gnome); the connection
+  # mechanism (batch_connect.template: dcv) + set_host live in the app-level
+  # submit.yml.erb. GNOME + NICE DCV are installed on the 'desktop' queue nodes
+  # by pcluster_worker_node_desktop.sh.
   cat << EOF > /etc/ood/config/apps/bc_desktop/${cluster_name}.yml
 ---
-title: "Linux Desktop on ${cluster_name}"
+title: "Linux Desktop (DCV) on ${cluster_name}"
 cluster: "${cluster_name}"
 attributes:
-  desktop: "mate"
+  desktop: "gnome"
   bc_queue: "desktop"
   account: "enduser-research-account"
 EOF

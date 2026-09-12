@@ -1,0 +1,15 @@
+---
+# App-level batch_connect for the DCV desktop (mirrors the layout of the stock
+# VNC bc_desktop submit.yml.erb). The per-cluster file emitted by
+# configure_cluster_for_ood.sh supplies cluster / desktop:"gnome" / bc_queue,
+# which is where <%= cluster %> below resolves from.
+batch_connect:
+  template: "dcv"
+  # .pcluster host form, identical to the working VNC path. $(...) stays literal
+  # in the YAML and is evaluated by OOD in the job on the compute node; only
+  # <%= cluster %> is rendered here.
+  set_host: "host=$(hostname | awk '{print $1}').<%= cluster %>.pcluster"
+script:
+  native:
+    - "-t"
+    - "<%= session_timeout %>"

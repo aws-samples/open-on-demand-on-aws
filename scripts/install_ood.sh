@@ -99,7 +99,9 @@ dex:
               nameAttr: name
               preferredUsernameAttr: name
 # turn on proxy for interactive desktop apps
-host_regex: '[^/]+'
+# Domain-scoped to the ParallelCluster .pcluster DNS used by set_host (matches the
+# DCV/VNC host form); avoids a wide-open '[^/]+' and any hardcoded CIDR.
+host_regex: '[^/]+\.pcluster'
 node_uri: '/node'
 rnode_uri: '/rnode'
 EOF
@@ -323,12 +325,65 @@ chmod +x /etc/ood/config/bin_overrides.py
 echo "apache  ALL=NOPASSWD: /sbin/adduser" >> /etc/sudoers
 echo "apache  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Setup for interactive desktops with PCluster
-rm -rf /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
-cat << EOF >> /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
-batch_connect:
-  template: vnc
-  websockify_cmd: "/usr/local/bin/websockify"
-  set_host: "host=\$(hostname | awk '{print \$1}').<%= cluster%>.pcluster"
-EOF
+# --- Interactive desktop via Amazon DCV (replaces the TurboVNC/websockify setup) ---
+# The repo is checked out on the portal (cwd = <repo>/scripts), so install the DCV
+# assets straight from the tree -- single source of truth with assets/ood-dcv/.
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DCV_ASSETS="${REPO_DIR}/assets/ood-dcv"
+
+# 1) Convert the bc_desktop app from VNC to DCV.
+install -m 0644 "${DCV_ASSETS}/bc_desktop/form.yml"       /var/www/ood/apps/sys/bc_desktop/form.yml
+install -m 0644 "${DCV_ASSETS}/bc_desktop/manifest.yml"   /var/www/ood/apps/sys/bc_desktop/manifest.yml
+install -m 0644 "${DCV_ASSETS}/bc_desktop/submit.yml.erb" /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
+install -m 0644 "${DCV_ASSETS}/bc_desktop/view.html.erb"  /var/www/ood/apps/sys/bc_desktop/view.html.erb
+
+# 2) Stage the DCV batch-connect template (ood_core ships none) + an upgrade-safe
+#    reconfigure hook: OOD RPM upgrades replace the gem dir and regenerate the
+#    Apache config, dropping both dcv.rb and the /rnode secure-upstream flag.
+install -D -m 0644 "${DCV_ASSETS}/templates/dcv.rb" /opt/ood-dcv/dcv.rb
+cat > /usr/local/sbin/ood-dcv-reconfigure.sh <<'RECONF'
+#!/bin/bash
+set -euo pipefail
+# Re-copy the DCV template into ood_core.
+tmpl_dir=$(find /opt /usr -type d -path "*ood_core*/batch_connect/templates" 2>/dev/null | head -1)
+[ -n "$tmpl_dir" ] && install -m 0644 /opt/ood-dcv/dcv.rb "${tmpl_dir}/dcv.rb"
+# Regenerate the portal config, then scope OOD_SECURE_UPSTREAM to /rnode so OOD
+# proxies https://+wss:// to DCV's TLS port (leaving /pun on unix+http and /node on http).
+/opt/ood/ood-portal-generator/sbin/update_ood_portal
+conf=/etc/httpd/conf.d/ood-portal.conf
+if ! grep -q 'OOD_SECURE_UPSTREAM' "$conf"; then
+  sed -i '\#LocationMatch "^/rnode#a\    SetEnv OOD_SECURE_UPSTREAM 1' "$conf"
+fi
+systemctl reload httpd || systemctl restart httpd
+RECONF
+chmod 0755 /usr/local/sbin/ood-dcv-reconfigure.sh
+
+# 3) DCV serves a self-signed cert on 8443; allow the proxy's TLS hop to it.
+#    (SSLProxyEngine is only legal at server/vhost scope, not inside <Location>;
+#    it only performs SSL to a backend where OOD_SECURE_UPSTREAM is set, i.e. /rnode.)
+cat > /etc/httpd/conf.d/ood-dcv-proxy.conf <<'SSLCONF'
+SSLProxyEngine on
+SSLProxyCheckPeerName off
+SSLProxyCheckPeerCN off
+SSLProxyCheckPeerExpire off
+SSLCONF
+
+# 4) Apply now (install dcv.rb, regenerate portal, inject the /rnode flag, reload).
+/usr/local/sbin/ood-dcv-reconfigure.sh
+
+# 5) Re-run it after any ondemand package upgrade.
+cat > /etc/systemd/system/ood-dcv-reconfigure.service <<'UNIT'
+[Unit]
+Description=Reassert OOD DCV template + reverse-proxy directives after upgrades
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ood-dcv-reconfigure.sh
+UNIT
+systemctl daemon-reload
+mkdir -p /etc/dnf/plugins/post-transaction-actions.d
+dnf install -y python3-dnf-plugin-post-transaction-actions || true
+cat > /etc/dnf/plugins/post-transaction-actions.d/ood-dcv.action <<'ACTION'
+ondemand*:in:systemctl start ood-dcv-reconfigure.service
+ACTION
+
 shutdown -r now
