@@ -72,8 +72,10 @@ module OodCore
           end
 
           # Run the main desktop script under the DCV session's display.
+          # `dcv describe-session` reports the display already prefixed (e.g. ":0"),
+          # so use it verbatim -- prefixing another ":" yields an invalid "::0".
           def run_script
-            %(DISPLAY=:${display} #{super})
+            %(DISPLAY=${display} #{super})
           end
 
           # Close the DCV session on cleanup.

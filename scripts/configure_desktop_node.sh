@@ -144,8 +144,6 @@ BASHRC=/etc/bashrc; [ "$family" = "deb" ] && BASHRC=/etc/bash.bashrc
 echo "[-] updating ${BASHRC}"
 cat >> "$BASHRC" << 'EOF'
 PATH=$PATH:/shared/software/bin
-# fix dconf permission error under virtual DCV sessions
-export XDG_RUNTIME_DIR="$HOME/.cache/dconf"
 EOF
 
 echo "[-] $(date) DONE"
