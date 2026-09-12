@@ -21,7 +21,14 @@
 
 set -euo pipefail
 LOG=/var/log/configure_desktop.log
-exec >> "$LOG" 2>&1
+# Tee all output to both /var/log/configure_desktop.log AND stdout. ParallelCluster
+# captures an OnNodeConfigured script's stdout/stderr into /var/log/cloud-init-output.log,
+# which is shipped to CloudWatch -- so everything echoed here is visible in CloudWatch
+# (previously `exec >> "$LOG"` hid it in a local file that isn't shipped).
+exec > >(tee -a "$LOG") 2>&1
+# Under `set -e`, report the failing line + command before exiting so the cause is
+# visible in CloudWatch instead of surfacing as an empty stderr / bare "return code 1".
+trap 'rc=$?; echo "[!] configure_desktop_node.sh FAILED (rc=${rc}) at line ${LINENO}: ${BASH_COMMAND}"; exit "${rc}"' ERR
 echo "[-] $(date) starting DCV desktop bootstrap"
 
 DCV_BASE=https://d1uj6qtbmh3dt5.cloudfront.net
