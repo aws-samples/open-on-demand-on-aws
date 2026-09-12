@@ -149,6 +149,26 @@ Document in this plan file under a "Task 1 result" note: whether the DCV web cli
 
 **GATE:** If DCV cannot be made to work through the reverse proxy after reasonable effort, STOP and escalate — the fallback is the reference's ALB approach (adds a per-node target-group updater Lambda for the elastic desktop queue), which is a materially larger change and should be re-scoped with the user.
 
+### Task 1 result (2026-09-11) — GATE PASSED (reverse proxy works; no ALB needed)
+
+Spiked on a temp AL2023 node (`ip-10-50-2-40`) against the live portal (`ood3.domorand.people.aws.dev`). The DCV web client renders through `/rnode/<host>/8443/` — HTML, assets, and the sign-in form all load over the OOD reverse proxy. No ALB, no TLS shim, no `mod_ood_proxy` patch required.
+
+Both proxy hops confirmed in the portal access log: asset GET (`.../images/favicon.ico`) → `200` via `proxy:https://…:8443`, and the DCV pixel stream (`.../ws`) → `req_is_websocket="true"`, `req_status="101"` (Switching Protocols) via `proxy:wss://…:8443`. The reverse proxy handles both TLS HTTP and TLS WebSocket to DCV. (A connect attempt without `?authToken=` produces DCV's "connection has been closed" after the 101 — expected; the `dcv.rb` template supplies the simple-external-auth token automatically.)
+
+**Exact working configuration:**
+
+- **DCV `web-url-path="/"`** — NOT the `/rnode/<host>/8443` prefix the plan originally specified. OOD's `node_proxy.lua` **strips** the `/rnode/HOST/PORT` prefix and forwards only the trailing URI to the backend, so DCV must serve at root; its client emits relative asset URLs that resolve against the browser's `/rnode/.../8443/` location. (Prefix `web-url-path` is ALB-thinking — that only applies to a proxy that *preserves* the prefix.)
+- **OOD secure upstream** — OOD proxies `http://` to backends by default; DCV is TLS-only on 8443. `ood/proxy.lua` reads `r.subprocess_env['OOD_SECURE_UPSTREAM'] == '1'` and then proxies `https://` (and `wss://` for the WebSocket stream). Set `SetEnv OOD_SECURE_UPSTREAM 1` **inside the rnode `<LocationMatch>`** (scoped, not global). This is a supported OOD feature — the clean fix.
+- **Self-signed cert** — `SSLProxyEngine on` + `SSLProxyCheckPeerName/CN/Expire off`. NOTE: `SSLProxyEngine` is **not** allowed in `<Location>` context (the plan's Task 7 scoping suggestion is invalid for this directive) — it must be server/vhost scope. For the spike these went in a bare `/etc/httpd/conf.d/ood-dcv-proxy.conf`; for Task 7 express via `ood_portal.yml`.
+
+**Corrections to fold into later tasks (discovered during the spike):**
+
+1. **DCV download URL** — the plan's `nice-dcv-el2023-x86_64.tgz` is wrong (returns a 317-byte error page → "not in gzip format"). Amazon Linux 2023 uses `amzn2023`: `https://d1uj6qtbmh3dt5.cloudfront.net/nice-dcv-amzn2023-x86_64.tgz`. Extracted dir: `nice-dcv-<ver>-amzn2023-x86_64`; RPMs are `*.amzn2023.x86_64.rpm`.
+2. **Missing package `nice-dcv-web-viewer`** — required for the browser client; the plan omitted it. Install it alongside server/xdcv/simple-external-authenticator (Task 2 + Task 1 install list).
+3. **`crudini` is not in AL2023 default repos** (`No match for argument: crudini`) — Task 2 must set `web-url-path` with `sed`/`crudini`-free, not depend on crudini.
+4. **`dcv create-session` as root needs `--owner <user>`** — relevant to any manual/validation step; the template runs as the user so it's fine there.
+5. **Security groups** — `ood.yml` already opens portal→compute on all TCP (`PortalComputeNodeEgress` + `ComputeNodeSecurityGroup` ingress 0-65535 from portal SG), so 8443 is covered *if the desktop-queue nodes attach `ComputeNodeSecurityGroup`*. TODO in Task 8: confirm the live `desktop` queue node SG membership (the untracked `hpc-security-group.yml` `HPCClusterSecurityGroup` allows self-ingress only — if desktop nodes use that instead, an 8443-from-portal rule is needed).
+
 - [ ] **Step 6: Commit the recorded findings**
 
 ```bash
