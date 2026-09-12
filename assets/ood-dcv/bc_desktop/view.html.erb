@@ -1,0 +1,15 @@
+<%#
+  DCV connect view. OOD proxies /rnode/<host>/<port>/ to the compute node and
+  strips that prefix before forwarding (so DCV runs with web-url-path="/"). The
+  auth token issued by dcv.rb (dcvsimpleextauth) is passed as ?authToken=..., and
+  the session id as the URL fragment. host/port/password/dcv_session come from the
+  template conn_params.
+-%>
+<%
+  dcv_url = "/rnode/#{host}/#{port}/?authToken=#{password}##{dcv_session}"
+%>
+<div class="text-center">
+  <a class="btn btn-primary btn-block" href="<%= dcv_url %>" target="_blank" rel="noopener">
+    <i class="fa fa-desktop"></i> Launch DCV Desktop
+  </a>
+</div>

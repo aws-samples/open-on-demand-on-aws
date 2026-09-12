@@ -1,0 +1,18 @@
+---
+# The connection mechanism (batch_connect.template: dcv) and desktop environment
+# (desktop: "gnome") + cluster + bc_queue are set in the per-cluster file emitted
+# by configure_cluster_for_ood.sh (see the plan's Gap 1). OOD merges that cluster
+# file with this app dir, so this app-level form only exposes the user options.
+form:
+  - session_timeout
+attributes:
+  session_timeout:
+    widget: select
+    label: "Session timeout"
+    help: "How long the desktop session may run before Slurm ends it."
+    options:
+      # Values are Slurm -t format: HH:MM:SS / D-HH:MM:SS.
+      - [ "2 hours", "02:00:00" ]
+      - [ "4 hours", "04:00:00" ]
+      - [ "8 hours", "08:00:00" ]
+      - [ "1 day",   "1-00:00:00" ]
