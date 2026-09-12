@@ -179,82 +179,32 @@ git commit -m "docs: record DCV reverse-proxy connectivity spike result"
 
 ---
 
-## Task 2: DCV desktop-node bootstrap script
+## Task 2: DCV desktop-node bootstrap (both cluster paths, OS-agnostic shared script) — DONE
 
-Replace the TurboVNC install in the desktop-node script with DCV. Keep GNOME (`dnf groupinstall "Desktop"`), the `spack-users` group, and the PATH export.
+Decision (2026-09-11): the repo ships **two** desktop-node bootstrap paths and both must work; use a **single shared, OS-agnostic script** as the source of truth.
 
-**Files:**
-- Modify: `scripts/pcluster_worker_node_desktop.sh`
+- **ParallelCluster** (live/deployed — `cluster-316`): runs `scripts/pcluster_worker_node_desktop.sh` from S3 via `CustomActions.OnNodeConfigured` (`create_sample_pcluster_config.sh`); desktop nodes attach `$COMPUTE_SG` = ood.yml `ComputeNodeSecurityGroup` (all-TCP from portal) → 8443 reachable, no SG change.
+- **PCS** (`pcs-starter.yml`, not currently deployed): its `PCSDesktopNodeLaunchTemplate` UserData previously ran an AL2-only turbovnc/MATE block (broken on AL2023). Refactored to `aws s3 cp` + run the same shared script from `${ClusterConfigBucket}`.
 
-**Interfaces:**
-- Produces: an AL2023 desktop node with `dcvserver` + `dcvsimpleextauth` enabled, GNOME installed, and `web-url-path` set to `/rnode/$(hostname -f)/8443` (value confirmed in Task 1).
+**Implemented (`scripts/pcluster_worker_node_desktop.sh`):** OS-agnostic per the user requirement — must not lock to amzn2023. Detects distro+arch from `/etc/os-release`/`uname -m` and maps to the DCV package family/token, covering the ParallelCluster OS matrix (alinux2, alinux2023, rhel8/9, rocky8/9, ubuntu 20.04/22.04/24.04; x86_64 + aarch64):
+- Tarball `nice-dcv-<dcv_os>-<arch>.tgz` (`amzn2023`/`amzn2`/`el8`/`el9`/`ubuntu20xx`); extracted-dir glob handles the version suffix.
+- Package install by family: `dnf` for RPM (`nice-dcv-server` + **`nice-dcv-web-viewer`** + `nice-xdcv` + `nice-dcv-simple-external-authenticator`), `apt-get` + `usermod -aG video dcv` for DEB.
+- Desktop environment per OS: `dnf groupinstall "Desktop"` (amzn2023), `"Server with GUI"` (el8/el9), `amazon-linux-extras mate-desktop1.x` (amzn2), `ubuntu-desktop-minimal` (ubuntu).
+- GPG key: `rpm --import` (RPM) / `gpg --import` (DEB).
+- `dcv.conf` via **sed** (no crudini dependency): `web-url-path="/"` and `auth-token-verifier="https://127.0.0.1:8444"`.
+- Enable `dcvserver`+`dcvsimpleextauth`; `multi-user.target`; spack-users group; PATH/XDG export into the family-correct bashrc (`/etc/bashrc` vs `/etc/bash.bashrc`).
+- **Validated end-to-end only on AL2023 / x86_64** (Task 1 spike); other combinations follow the DCV Linux install guide and must be validated before production use. All six Task-1 corrections folded in.
 
-- [ ] **Step 1: Rewrite the script**
+**`assets/cloudformation/pcs-starter.yml`:** `PCSDesktopNodeLaunchTemplate` UserData now fetches + runs the shared script from the config bucket (replacing the dead AL2 inline block).
 
-Replace the entire body after the license header with:
+**Verified:** `shellcheck scripts/pcluster_worker_node_desktop.sh` → clean; `cfn-lint assets/cloudformation/pcs-starter.yml` → clean; `${ClusterConfigBucket}` confirmed in the desktop UserData `Fn::Sub` map.
 
-```bash
-#!/bin/bash
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: MIT-0
+**Remaining deploy notes (Task 8):**
+- Ensure the script is uploaded to the bucket each path reads (`upload_pcluster_configs.sh` already lists it).
+- **PCS-only SG gap:** `pcs-starter.yml` desktop nodes attach `HPCClusterSecurityGroupId` (self-ingress only in the untracked `hpc-security-group.yml`) — a PCS deployment needs an 8443-from-portal ingress rule. Not needed for the live ParallelCluster env.
+- GPU: add `nice-dcv-gl` only if the desktop queue moves to GPU instances.
 
-set -euo pipefail
-LOG=/var/log/configure_desktop.log
-
-echo "[-] Installing base packages" >> "$LOG"
-# glx-utils provides glxinfo for verifying (software) OpenGL rendering on non-GPU nodes
-dnf install -y jq nmap-ncat crudini glx-utils
-
-# Add spack-users group
-groupadd spack-users -g 4000 || true
-
-# Desktop ENVIRONMENT (GNOME). nice-xdcv (below) is the virtual X server, not a DE — both are needed.
-echo "[-] Installing GNOME desktop" >> "$LOG"
-dnf groupinstall "Desktop" -y
-
-echo "[-] Installing NICE DCV" >> "$LOG"
-rpm --import https://d1uj6qtbmh3dt5.cloudfront.net/NICE-GPG-KEY
-DCV_TGZ=/tmp/nice-dcv-el2023-x86_64.tgz
-curl -fsSL -o "$DCV_TGZ" https://d1uj6qtbmh3dt5.cloudfront.net/nice-dcv-el2023-x86_64.tgz
-tar -xzf "$DCV_TGZ" -C /tmp
-DCV_DIR=$(find /tmp -maxdepth 1 -type d -name 'nice-dcv-*-el2023-x86_64' | head -1)
-dnf install -y \
-  "$DCV_DIR"/nice-dcv-server-*.rpm \
-  "$DCV_DIR"/nice-xdcv-*.rpm \
-  "$DCV_DIR"/nice-dcv-simple-external-authenticator-*.rpm
-
-echo "[-] Configuring DCV web-url-path for OOD reverse proxy" >> "$LOG"
-HOST_FQDN=$(hostname -f)
-crudini --set /etc/dcv/dcv.conf connectivity web-url-path "\"/rnode/${HOST_FQDN}/8443\""
-
-systemctl enable --now dcvserver dcvsimpleextauth
-
-# Virtual sessions use Xdcv as the X server — no Xorg/XDummy/GDM needed.
-# Keep the node in multi-user mode; do NOT switch to graphical.target (avoids GDM/Wayland issues).
-echo "[-] Setting multi-user.target for virtual DCV sessions" >> "$LOG"
-systemctl set-default multi-user.target
-systemctl isolate multi-user.target || true
-
-echo "[-] Updating bashrc" >> "$LOG"
-cat >> /etc/bashrc << 'EOF'
-PATH=$PATH:/shared/software/bin
-export XDG_RUNTIME_DIR="$HOME/.cache/dconf"
-EOF
-
-echo "DONE" >> "$LOG"
-```
-
-- [ ] **Step 2: Shellcheck the script**
-
-Run: `shellcheck scripts/pcluster_worker_node_desktop.sh`
-Expected: no errors (warnings about `set -e` with `groupadd || true` are acceptable).
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add scripts/pcluster_worker_node_desktop.sh
-git commit -m "feat: install NICE DCV on desktop nodes instead of TurboVNC"
-```
+Commit: `feat: install NICE DCV on desktop nodes (OS-agnostic AL2023+ bootstrap, both paths)`
 
 ---
 
