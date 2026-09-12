@@ -6,7 +6,7 @@
 scripts=(
     "pcluster_head_node.sh"
     "pcluster_worker_node.sh"
-    "pcluster_worker_node_desktop.sh"
+    "configure_desktop_node.sh"
     "configure_login_nodes.sh"
     "configure_pam_slurm_adopt.sh"
     "configure_ood_for_pcs.sh"

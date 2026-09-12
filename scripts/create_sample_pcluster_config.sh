@@ -181,7 +181,7 @@ cat << EOF >> $PCLUSTER_FILENAME
       CustomActions:
         OnNodeConfigured:
           Script: >-
-            s3://$BUCKET_NAME/pcluster_worker_node_desktop.sh
+            s3://$BUCKET_NAME/configure_desktop_node.sh
           Args:
             - $STACK_NAME
       Iam:

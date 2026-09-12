@@ -12,10 +12,10 @@
 #
 # OS-agnostic: detects the running distro + architecture and selects the matching
 # DCV package family, so it works across the OSes ParallelCluster supports
-# (alinux2, alinux2023, rhel8/9, rocky8/9, ubuntu 20.04/22.04/24.04; x86_64 +
-# aarch64). Only Amazon Linux 2023 / x86_64 has been validated end-to-end; the
-# other combinations follow the DCV Linux install guide and should be verified
-# before production use.
+# (alinux2023, rhel8/9, rocky8/9, ubuntu 20.04/22.04/24.04; x86_64 + aarch64).
+# Only Amazon Linux 2023 / x86_64 has been validated end-to-end; the other
+# combinations follow the DCV Linux install guide and should be verified before
+# production use.
 # Refs: https://docs.aws.amazon.com/dcv/latest/adminguide/setting-up-installing-linux-server.html
 #       https://docs.aws.amazon.com/parallelcluster/latest/ug/Image-v3.html#yaml-Image-Os
 
@@ -35,7 +35,6 @@ dcv_os=""                              # token used in the DCV tarball / dir nam
 family=""                              # rpm | deb
 case "$os_key" in
   amzn2023)                          dcv_os="amzn2023";   family="rpm" ;;
-  amzn2)                             dcv_os="amzn2";      family="rpm" ;;
   rhel8|rocky8|centos8|almalinux8)   dcv_os="el8";        family="rpm" ;;
   rhel9|rocky9|centos9|almalinux9)   dcv_os="el9";        family="rpm" ;;
   ubuntu20)                          dcv_os="ubuntu2004"; family="deb" ;;
@@ -54,7 +53,6 @@ install_base_and_desktop() {
       dnf install -y jq nmap-ncat glx-utils mesa-dri-drivers mesa-libGL
       case "$dcv_os" in
         amzn2023)  dnf groupinstall -y "Desktop" ;;
-        amzn2)     amazon-linux-extras install -y mate-desktop1.x ;;
         el8|el9)   dnf groupinstall -y "Server with GUI" ;;
       esac
       ;;

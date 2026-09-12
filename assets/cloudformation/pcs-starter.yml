@@ -473,10 +473,10 @@ Resources:
               ## truth with the ParallelCluster OnNodeConfigured path. (AL2023: the old
               ## turbovnc/mate-via-amazon-linux-extras install no longer works here.)
               echo "Fetching DCV desktop bootstrap script" >> /var/log/configure_desktop.log
-              aws s3 cp s3://${ClusterConfigBucket}/pcluster_worker_node_desktop.sh /tmp/pcluster_worker_node_desktop.sh
-              chmod +x /tmp/pcluster_worker_node_desktop.sh
-              /tmp/pcluster_worker_node_desktop.sh
-              rm -f /tmp/pcluster_worker_node_desktop.sh
+              aws s3 cp s3://${ClusterConfigBucket}/configure_desktop_node.sh /tmp/configure_desktop_node.sh
+              chmod +x /tmp/configure_desktop_node.sh
+              /tmp/configure_desktop_node.sh
+              rm -f /tmp/configure_desktop_node.sh
 
               --==MYBOUNDARY==
             - BIND_DN: !Sub '${BindDN}'

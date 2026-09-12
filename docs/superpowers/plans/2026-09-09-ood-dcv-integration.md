@@ -24,7 +24,7 @@
 
 ## File Structure
 
-- `scripts/pcluster_worker_node_desktop.sh` (modify) — desktop-node bootstrap: replace TurboVNC install with DCV server + authenticator + GNOME; keep spack group + PATH.
+- `scripts/configure_desktop_node.sh` (modify) — desktop-node bootstrap: replace TurboVNC install with DCV server + authenticator + GNOME; keep spack group + PATH.
 - `assets/ood-dcv/templates/dcv.rb` (create) — ported batch-connect template (reverse-proxy URL scheme).
 - `assets/ood-dcv/bc_desktop/submit.yml.erb` (create) — Slurm submission, `template: "dcv"`, `set_host`, target the `desktop` queue.
 - `assets/ood-dcv/bc_desktop/form.yml` (create) — desktop app form (session timeout; desktop = dcv).
@@ -65,9 +65,9 @@ Then Task 4's `form.yml` should set `desktop: "gnome"` (not `"dcv"`), and Task 5
 
 ### Gap 2 — two desktop-node bootstrap paths; the live one is inline in `pcs-starter.yml`
 
-Task 2 rewrites `scripts/pcluster_worker_node_desktop.sh`, but the `desktop` queue (`PCSNodeGroupDesktop`) runs `PCSDesktopNodeLaunchTemplate`, whose **inline UserData** (pcs-starter.yml ~471-508) installs turbovnc + `amazon-linux-extras install mate-desktop1.x` — commands that do not exist on AL2023. Editing only the standalone script leaves this dead.
+Task 2 rewrites `scripts/configure_desktop_node.sh`, but the `desktop` queue (`PCSNodeGroupDesktop`) runs `PCSDesktopNodeLaunchTemplate`, whose **inline UserData** (pcs-starter.yml ~471-508) installs turbovnc + `amazon-linux-extras install mate-desktop1.x` — commands that do not exist on AL2023. Editing only the standalone script leaves this dead.
 
-**Suggestion (preferred):** collapse to a single source. Have the `PCSDesktopNodeLaunchTemplate` UserData `curl` and run `pcluster_worker_node_desktop.sh` from the cluster-config S3 bucket (the mechanism `pcs-starter.yml` already uses for other assets), then Task 2 edits only the script. If a refactor is out of scope, **Task 2 must instead edit the inline UserData in `pcs-starter.yml`** (replace the turbovnc/`amazon-linux-extras` block with the DCV+GNOME `dnf` install) and treat the standalone script as legacy/retired. Either way, verify which path the deployed cluster actually uses before writing code.
+**Suggestion (preferred):** collapse to a single source. Have the `PCSDesktopNodeLaunchTemplate` UserData `curl` and run `configure_desktop_node.sh` from the cluster-config S3 bucket (the mechanism `pcs-starter.yml` already uses for other assets), then Task 2 edits only the script. If a refactor is out of scope, **Task 2 must instead edit the inline UserData in `pcs-starter.yml`** (replace the turbovnc/`amazon-linux-extras` block with the DCV+GNOME `dnf` install) and treat the standalone script as legacy/retired. Either way, verify which path the deployed cluster actually uses before writing code.
 
 ### Gap 3 — `set_host` / `web-url-path` / `host_regex` must use one consistent host form
 
@@ -193,10 +193,10 @@ git commit -m "docs: record DCV reverse-proxy connectivity spike result"
 
 Decision (2026-09-11): the repo ships **two** desktop-node bootstrap paths and both must work; use a **single shared, OS-agnostic script** as the source of truth.
 
-- **ParallelCluster** (live/deployed — `cluster-316`): runs `scripts/pcluster_worker_node_desktop.sh` from S3 via `CustomActions.OnNodeConfigured` (`create_sample_pcluster_config.sh`); desktop nodes attach `$COMPUTE_SG` = ood.yml `ComputeNodeSecurityGroup` (all-TCP from portal) → 8443 reachable, no SG change.
+- **ParallelCluster** (live/deployed — `cluster-316`): runs `scripts/configure_desktop_node.sh` from S3 via `CustomActions.OnNodeConfigured` (`create_sample_pcluster_config.sh`); desktop nodes attach `$COMPUTE_SG` = ood.yml `ComputeNodeSecurityGroup` (all-TCP from portal) → 8443 reachable, no SG change.
 - **PCS** (`pcs-starter.yml`, not currently deployed): its `PCSDesktopNodeLaunchTemplate` UserData previously ran an AL2-only turbovnc/MATE block (broken on AL2023). Refactored to `aws s3 cp` + run the same shared script from `${ClusterConfigBucket}`.
 
-**Implemented (`scripts/pcluster_worker_node_desktop.sh`):** OS-agnostic per the user requirement — must not lock to amzn2023. Detects distro+arch from `/etc/os-release`/`uname -m` and maps to the DCV package family/token, covering the ParallelCluster OS matrix (alinux2, alinux2023, rhel8/9, rocky8/9, ubuntu 20.04/22.04/24.04; x86_64 + aarch64):
+**Implemented (`scripts/configure_desktop_node.sh`):** OS-agnostic per the user requirement — must not lock to amzn2023. Detects distro+arch from `/etc/os-release`/`uname -m` and maps to the DCV package family/token, covering the ParallelCluster OS matrix (alinux2, alinux2023, rhel8/9, rocky8/9, ubuntu 20.04/22.04/24.04; x86_64 + aarch64):
 - Tarball `nice-dcv-<dcv_os>-<arch>.tgz` (`amzn2023`/`amzn2`/`el8`/`el9`/`ubuntu20xx`); extracted-dir glob handles the version suffix.
 - Package install by family: `dnf` for RPM (`nice-dcv-server` + **`nice-dcv-web-viewer`** + `nice-xdcv` + `nice-dcv-simple-external-authenticator`), `apt-get` + `usermod -aG video dcv` for DEB.
 - Desktop environment per OS: `dnf groupinstall "Desktop"` (amzn2023), `"Server with GUI"` (el8/el9), `amazon-linux-extras mate-desktop1.x` (amzn2), `ubuntu-desktop-minimal` (ubuntu).
@@ -207,7 +207,7 @@ Decision (2026-09-11): the repo ships **two** desktop-node bootstrap paths and b
 
 **`assets/cloudformation/pcs-starter.yml`:** `PCSDesktopNodeLaunchTemplate` UserData now fetches + runs the shared script from the config bucket (replacing the dead AL2 inline block).
 
-**Verified:** `shellcheck scripts/pcluster_worker_node_desktop.sh` → clean; `cfn-lint assets/cloudformation/pcs-starter.yml` → clean; `${ClusterConfigBucket}` confirmed in the desktop UserData `Fn::Sub` map.
+**Verified:** `shellcheck scripts/configure_desktop_node.sh` → clean; `cfn-lint assets/cloudformation/pcs-starter.yml` → clean; `${ClusterConfigBucket}` confirmed in the desktop UserData `Fn::Sub` map.
 
 **Remaining deploy notes (Task 8):**
 - Ensure the script is uploaded to the bucket each path reads (`upload_pcluster_configs.sh` already lists it).
@@ -580,7 +580,7 @@ git commit -m "feat: install DCV template and bc_desktop in OOD portal setup"
 
 - [ ] **Step 1: Deploy the desktop-node change**
 
-Upload the updated `pcluster_worker_node_desktop.sh` to the cluster config S3 bucket (the mechanism `pcluster-config.yml` already uses for `OnNodeConfigured`), then update/recreate the `desktop` queue nodes.
+Upload the updated `configure_desktop_node.sh` to the cluster config S3 bucket (the mechanism `pcluster-config.yml` already uses for `OnNodeConfigured`), then update/recreate the `desktop` queue nodes.
 
 - [ ] **Step 2: Deploy the portal change**
 

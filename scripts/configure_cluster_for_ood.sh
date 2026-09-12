@@ -33,7 +33,7 @@ EOF
   # desktop: selects the desktop ENVIRONMENT template (gnome); the connection
   # mechanism (batch_connect.template: dcv) + set_host live in the app-level
   # submit.yml.erb. GNOME + NICE DCV are installed on the 'desktop' queue nodes
-  # by pcluster_worker_node_desktop.sh.
+  # by configure_desktop_node.sh.
   cat << EOF > /etc/ood/config/apps/bc_desktop/${cluster_name}.yml
 ---
 title: "Linux Desktop (DCV) on ${cluster_name}"
