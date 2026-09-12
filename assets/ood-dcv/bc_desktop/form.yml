@@ -1,11 +1,18 @@
 ---
-# The connection mechanism (batch_connect.template: dcv) and desktop environment
-# (desktop: "gnome") + cluster + bc_queue are set in the per-cluster file emitted
-# by configure_cluster_for_ood.sh (see the plan's Gap 1). OOD merges that cluster
-# file with this app dir, so this app-level form only exposes the user options.
+# The connection mechanism (batch_connect.template: dcv) + set_host live in the
+# scheduler's submit.yml.erb; cluster + desktop env come from the per-cluster file
+# emitted by configure_cluster_for_ood.sh (ParallelCluster). `desktop` must be a
+# form attribute so it lands in the batch-connect session context (the stock
+# bc_desktop templates reference it to pick template/desktops/<desktop>.sh); it's
+# hidden with a gnome default (the per-cluster `desktop:` merges over it, and the
+# default also covers the PCS path, which sets no desktop attribute).
 form:
+  - desktop
   - session_timeout
 attributes:
+  desktop:
+    widget: "hidden_field"
+    value: "gnome"
   session_timeout:
     widget: select
     label: "Session timeout"
