@@ -99,9 +99,11 @@ dex:
               nameAttr: name
               preferredUsernameAttr: name
 # turn on proxy for interactive desktop apps
-# Domain-scoped to the ParallelCluster .pcluster DNS used by set_host (matches the
-# DCV/VNC host form); avoids a wide-open '[^/]+' and any hardcoded CIDR.
-host_regex: '[^/]+\.pcluster'
+# Keep the host match broad: the reverse proxy targets the compute node named by
+# set_host, whose form differs by scheduler -- ParallelCluster uses
+# <host>.<cluster>.pcluster, PCS uses the bare short hostname (no .pcluster private
+# hosted zone). A .pcluster-scoped regex would reject PCS nodes.
+host_regex: '[^/]+'
 node_uri: '/node'
 rnode_uri: '/rnode'
 EOF

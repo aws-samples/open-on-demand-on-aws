@@ -105,13 +105,18 @@ EOF
 echo "[-] Uploading 'slurm.conf' to '${ClusterConfigBucket}'"
 aws s3 cp /etc/slurm/slurm.conf s3://${ClusterConfigBucket}/slurm/
 
-# Fix set_host value in bc_desktop 
+# Point bc_desktop at DCV with the PCS host form: the bare short hostname (PCS has
+# no .pcluster private hosted zone). Overwrites the app submit.yml.erb installed by
+# install_ood.sh, which carries the ParallelCluster .pcluster form.
 rm -rf /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
 cat << EOF >> /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
 batch_connect:
-  template: vnc
-  websockify_cmd: "/usr/local/bin/websockify"
+  template: dcv
   set_host: "host=\$(hostname | awk '{print \$1}')"
+script:
+  native:
+    - "-t"
+    - "<%= session_timeout %>"
 EOF
 
 # Restart httpd
