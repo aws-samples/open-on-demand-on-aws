@@ -10,6 +10,9 @@ batch_connect:
   # <%= cluster %> is rendered here.
   set_host: "host=$(hostname | awk '{print $1}').<%= cluster %>.pcluster"
 script:
+  # Route to the DCV-enabled 'desktop' Slurm partition (only those nodes run
+  # configure_desktop_node.sh); without this the job lands on the default queue.
+  queue_name: "desktop"
   native:
     - "-t"
     - "<%= session_timeout %>"

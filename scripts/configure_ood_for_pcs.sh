@@ -114,6 +114,7 @@ batch_connect:
   template: dcv
   set_host: "host=\$(hostname | awk '{print \$1}')"
 script:
+  queue_name: "desktop"
   native:
     - "-t"
     - "<%= session_timeout %>"
