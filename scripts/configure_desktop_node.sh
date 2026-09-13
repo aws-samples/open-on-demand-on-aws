@@ -33,23 +33,6 @@ echo "[-] $(date) starting DCV desktop bootstrap"
 
 DCV_BASE=https://d1uj6qtbmh3dt5.cloudfront.net
 
-# Retry a command with a delay between attempts. The desktop bootstrap does heavy
-# network installs (CloudFront DCV download, dnf/apt repos); under `set -e` a
-# single transient failure would fail the whole node and requeue the job, so the
-# network/package steps are wrapped in this.
-retry() {
-  local tries="$1" delay="$2"; shift 2
-  local i=1
-  until "$@"; do
-    if [ "$i" -ge "$tries" ]; then
-      echo "[!] command failed after ${tries} attempts: $*"
-      return 1
-    fi
-    echo "[-] attempt ${i}/${tries} failed, retrying in ${delay}s: $*"
-    sleep "$delay"; i=$((i + 1))
-  done
-}
-
 # --- Detect OS + architecture and map to the DCV package token / family ---
 # shellcheck disable=SC1091
 . /etc/os-release
@@ -74,25 +57,25 @@ echo "[-] detected os_key=${os_key} dcv_os=${dcv_os} family=${family} arch=${ARC
 install_base_and_desktop() {
   case "$family" in
     rpm)
-      retry 5 15 dnf install -y jq nmap-ncat glx-utils mesa-dri-drivers mesa-libGL
+      dnf install -y jq nmap-ncat glx-utils mesa-dri-drivers mesa-libGL
       case "$dcv_os" in
-        amzn2023)  retry 5 15 dnf groupinstall -y "Desktop" ;;
-        el8|el9)   retry 5 15 dnf groupinstall -y "Server with GUI" ;;
+        amzn2023)  dnf groupinstall -y "Desktop" ;;
+        el8|el9)   dnf groupinstall -y "Server with GUI" ;;
       esac
       ;;
     deb)
       export DEBIAN_FRONTEND=noninteractive
-      retry 5 15 apt-get update -y
-      retry 5 15 apt-get install -y jq ncat mesa-utils libgl1-mesa-dri
-      retry 5 15 apt-get install -y ubuntu-desktop-minimal || retry 5 15 apt-get install -y ubuntu-desktop
+      apt-get update -y
+      apt-get install -y jq ncat mesa-utils libgl1-mesa-dri
+      apt-get install -y ubuntu-desktop-minimal || apt-get install -y ubuntu-desktop
       ;;
   esac
 }
 
 import_dcv_key() {
   case "$family" in
-    rpm) retry 5 10 rpm --import "${DCV_BASE}/NICE-GPG-KEY" ;;
-    deb) retry 5 10 curl -fsSL -o /tmp/NICE-GPG-KEY "${DCV_BASE}/NICE-GPG-KEY"; gpg --import /tmp/NICE-GPG-KEY || true ;;
+    rpm) rpm --import "${DCV_BASE}/NICE-GPG-KEY" ;;
+    deb) curl -fsSL -o /tmp/NICE-GPG-KEY "${DCV_BASE}/NICE-GPG-KEY"; gpg --import /tmp/NICE-GPG-KEY || true ;;
   esac
 }
 
@@ -100,7 +83,7 @@ install_dcv_packages() {
   local dir="$1"
   case "$family" in
     rpm)
-      retry 5 15 dnf install -y \
+      dnf install -y \
         "$dir"/nice-dcv-server-*.rpm \
         "$dir"/nice-dcv-web-viewer-*.rpm \
         "$dir"/nice-xdcv-*.rpm \
@@ -108,7 +91,7 @@ install_dcv_packages() {
       ;;
     deb)
       export DEBIAN_FRONTEND=noninteractive
-      retry 5 15 apt-get install -y \
+      apt-get install -y \
         "$dir"/nice-dcv-server_*.deb \
         "$dir"/nice-dcv-web-viewer_*.deb \
         "$dir"/nice-xdcv_*.deb \
@@ -127,7 +110,7 @@ groupadd spack-users -g 4000 || true
 echo "[-] installing NICE DCV (server + web viewer + xdcv + simple external authenticator)"
 import_dcv_key
 DCV_TGZ="/tmp/nice-dcv-${dcv_os}-${ARCH}.tgz"
-retry 5 10 curl -fsSL -o "$DCV_TGZ" "${DCV_BASE}/nice-dcv-${dcv_os}-${ARCH}.tgz"
+curl -fsSL -o "$DCV_TGZ" "${DCV_BASE}/nice-dcv-${dcv_os}-${ARCH}.tgz"
 tar -xzf "$DCV_TGZ" -C /tmp
 DCV_DIR=$(find /tmp -maxdepth 1 -type d -name "nice-dcv-*-${dcv_os}-${ARCH}" | head -1)
 if [ -z "$DCV_DIR" ]; then echo "[!] extracted DCV directory not found" >&2; exit 1; fi
