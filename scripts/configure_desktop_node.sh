@@ -19,16 +19,23 @@
 # Refs: https://docs.aws.amazon.com/dcv/latest/adminguide/setting-up-installing-linux-server.html
 #       https://docs.aws.amazon.com/parallelcluster/latest/ug/Image-v3.html#yaml-Image-Os
 
-set -euo pipefail
+# -E (errtrace): make the ERR trap fire for failures INSIDE functions too
+# (import_dcv_key/install_* are functions; without -E the trap never ran, which is
+# why failures showed up only as a bare "return code 1").
+set -Eeuo pipefail
 LOG=/var/log/configure_desktop.log
 # Tee all output to both /var/log/configure_desktop.log AND stdout. ParallelCluster
 # captures an OnNodeConfigured script's stdout/stderr into /var/log/cloud-init-output.log,
-# which is shipped to CloudWatch -- so everything echoed here is visible in CloudWatch
-# (previously `exec >> "$LOG"` hid it in a local file that isn't shipped).
+# which is shipped to CloudWatch -- so everything echoed here is visible in CloudWatch.
 exec > >(tee -a "$LOG") 2>&1
-# Under `set -e`, report the failing line + command before exiting so the cause is
-# visible in CloudWatch instead of surfacing as an empty stderr / bare "return code 1".
-trap 'rc=$?; echo "[!] configure_desktop_node.sh FAILED (rc=${rc}) at line ${LINENO}: ${BASH_COMMAND}"; exit "${rc}"' ERR
+# Trace every command with its source line number so the exact failing step (and its
+# stderr) is visible in CloudWatch.
+export PS4='+ configure_desktop_node.sh:${LINENO}: '
+set -x
+# On error: print the failing line + command, then sync/sleep so the tee child flushes
+# the diagnostic to the log before the process exits (process-substitution can drop the
+# final line otherwise).
+trap 'rc=$?; set +x; echo "[!] configure_desktop_node.sh FAILED (rc=${rc}) at line ${LINENO}: ${BASH_COMMAND}"; sync; sleep 2; exit "${rc}"' ERR
 echo "[-] $(date) starting DCV desktop bootstrap"
 
 DCV_BASE=https://d1uj6qtbmh3dt5.cloudfront.net
