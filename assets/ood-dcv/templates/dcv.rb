@@ -48,16 +48,30 @@ module OodCore
               dcv_session="#{session_id}"
 
               echo "Creating DCV session ${dcv_session}..."
-              dcv create-session --storage-root "${HOME}" "${dcv_session}"
+              # Session creation can race a freshly-booted node; surface the reason on failure.
+              systemctl is-active dcvserver >/dev/null 2>&1 || echo "WARN: dcvserver not active yet"
+              if ! dcv create-session --storage-root "${HOME}" "${dcv_session}"; then
+                echo "ERROR: 'dcv create-session' returned non-zero; dcvserver status:"
+                systemctl status dcvserver --no-pager 2>&1 | tail -n 20 || true
+              fi
+              dcv list-sessions || true
 
               # Wait for the virtual X display to come up.
               display=""
-              for i in $(seq 1 10); do
-                display=$(dcv describe-session "${dcv_session}" 2>/dev/null | awk '/X display:/ {print $3}')
+              for i in $(seq 1 15); do
+                display=$(dcv describe-session "${dcv_session}" | awk '/X display:/ {print $3}')
                 [ -n "${display}" ] && break
-                sleep 1
+                echo "waiting for DCV display (attempt ${i}/15)..."
+                sleep 2
               done
-              [ -n "${display}" ] || { echo "DCV session failed to start" >&2; clean_up 1; }
+              if [ -z "${display}" ]; then
+                echo "ERROR: DCV session '${dcv_session}' has no X display after wait. Diagnostics:"
+                dcv describe-session "${dcv_session}" 2>&1 || true
+                dcv list-sessions 2>&1 || true
+                tail -n 40 /var/log/dcv/server.log 2>/dev/null || true
+                echo "DCV session failed to start" >&2
+                clean_up 1
+              fi
 
               # SSO: issue a one-time token via the DCV simple external
               # authenticator (must match auth-token-verifier in dcv.conf) and hand
