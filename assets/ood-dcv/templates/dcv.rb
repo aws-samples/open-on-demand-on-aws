@@ -94,11 +94,22 @@ module OodCore
             EOT
           end
 
-          # Run the main desktop script under the DCV session's display.
-          # `dcv describe-session` reports the display already prefixed (e.g. ":0"),
-          # so use it verbatim -- prefixing another ":" yields an invalid "::0".
+          # Do NOT launch a desktop here. A DCV virtual session starts the OS default
+          # desktop (GNOME on AL2023) itself when the session is created above, wired
+          # to the user's real D-Bus + systemd --user. Launching our own gnome-session
+          # (e.g. via dbus-run-session) instead runs on an isolated bus and fails to
+          # acquire org.gnome.Shell. So skip the desktop script (no `super`) and just
+          # keep the batch job alive until the DCV session ends, so Slurm holds the
+          # node for the session's lifetime; closing the session (or hitting the job's
+          # walltime) ends the job.
           def run_script
-            %(DISPLAY=${display} #{super})
+            <<-EOT.gsub(/^ {14}/, "")
+              echo "DCV manages the desktop for session #{session_id}; holding the job until it ends."
+              while dcv describe-session "#{session_id}" >/dev/null 2>&1; do
+                sleep 15
+              done
+              echo "DCV session #{session_id} has ended."
+            EOT
           end
 
           # Close the DCV session on cleanup.
