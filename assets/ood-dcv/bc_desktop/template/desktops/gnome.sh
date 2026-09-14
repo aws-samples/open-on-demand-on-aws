@@ -16,6 +16,12 @@ xauth_file=$(ps -o args= -C Xdcv 2>/dev/null | sed -n 's/.*-auth \([^ ]*\).*/\1/
 # Xdcv is X11-only; force the X11 session so GNOME doesn't attempt Wayland.
 export XDG_SESSION_TYPE=x11
 
+# Compute nodes have no GPU. gnome-shell is a GL compositor and aborts (never
+# acquires org.gnome.Shell) unless it can fall back to Mesa software rendering, so
+# force llvmpipe. Requires the mesa-dri-drivers / mesa-libGL packages on the node.
+export LIBGL_ALWAYS_SOFTWARE=1
+export GALLIUM_DRIVER=llvmpipe
+
 # Best-effort: disable screensaver/lock (ignore if the schema isn't installed).
 gsettings set org.gnome.desktop.screensaver lock-enabled false 2>/dev/null || true
 gsettings set org.gnome.desktop.screensaver idle-activation-enabled false 2>/dev/null || true
