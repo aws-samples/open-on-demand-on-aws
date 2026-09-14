@@ -14,5 +14,10 @@ script:
   # configure_desktop_node.sh); without this the job lands on the default queue.
   queue_name: "desktop"
   native:
+    # One DCV virtual session per node. DCV warns against running multiple virtual
+    # sessions for the same user on one server (shared home/D-Bus/devices); when
+    # Slurm packs two desktop jobs onto a node they contend and Xdcv intermittently
+    # fails with "Failed while waiting for outputs". Exclusive nodes avoid that.
+    - "--exclusive"
     - "-t"
     - "<%= session_timeout %>"

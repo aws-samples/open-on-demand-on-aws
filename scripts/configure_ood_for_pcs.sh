@@ -116,6 +116,9 @@ batch_connect:
 script:
   queue_name: "desktop"
   native:
+    # One DCV virtual session per node (see submit.yml.erb): concurrent sessions for
+    # the same user on one node contend and Xdcv fails "Failed while waiting for outputs".
+    - "--exclusive"
     - "-t"
     - "<%= session_timeout %>"
 EOF

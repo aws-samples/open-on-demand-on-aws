@@ -88,7 +88,20 @@ dcv close-session diag 2>/dev/null; true
    Verify: `Xdcv.<user>.<sid>.log` should show `IGLX: Loaded and initialized
    swrast` right after `Initializing extension GLX`.
 
-2. **Desktop dies / "connection has been lost" (`Could not get owner of name
+   NOTE: software GL is necessary but not sufficient — see cause 3.
+
+2. **Intermittent "Failed while waiting for outputs" even with swrast loaded
+   (the primary cause).**
+   Multiple desktop jobs packed onto one node create concurrent DCV virtual
+   sessions for the *same* user; they contend on shared home / D-Bus / devices
+   (DCV explicitly warns against this) and Xdcv intermittently fails to report its
+   display. Confirmed on a live node: 3 sessions created rapidly -> flaky; 3
+   sessions created sequentially with cleanup between -> 3/3 succeed.
+   **Fix:** run one DCV session per node -- `--exclusive` in the desktop job's
+   sbatch `native` args (`assets/ood-dcv/bc_desktop/submit.yml.erb` and
+   `scripts/configure_ood_for_pcs.sh`).
+
+3. **Desktop dies / "connection has been lost" (`Could not get owner of name
    'org.gnome.Shell'`).**
    A DCV virtual session already launches the OS default desktop (GNOME on
    AL2023) itself, wired to the user's real D-Bus + `systemd --user`. Launching a
