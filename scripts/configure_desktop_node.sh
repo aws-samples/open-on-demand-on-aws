@@ -139,22 +139,27 @@ set_dcv_conf connectivity web-url-path '"/"'
 # the dcv.rb batch-connect template issues (dcvsimpleextauth add-user) validate.
 set_dcv_conf security auth-token-verifier '"https://127.0.0.1:8444"'
 
-# Force Mesa software rendering (llvmpipe) node-wide. These are non-GPU compute
-# nodes; when a DCV virtual session starts, Xdcv initializes the GLX extension, and
-# if Mesa probes for a hardware DRI device it can block past DCV's session-start
-# timeout -- the virtual session then intermittently fails with "Failed while
-# waiting for outputs" (Xdcv never reports its display; see dcv-xsession.log
-# "Cannot read display number from Xdcv"). Pinning llvmpipe skips the hardware probe
-# so GL init is fast + deterministic. DCV opens a PAM session for the user, so
-# pam_env sources /etc/environment into it and Xdcv (+ gnome-shell) inherit these.
+# Force Mesa software rendering (llvmpipe) for the DCV server. These are non-GPU
+# compute nodes; when a DCV virtual session starts, Xdcv initializes the GLX
+# extension, and without a GPU that init stalls past DCV's session-start timeout --
+# the session then fails with "Failed while waiting for outputs" (Xdcv never reports
+# its display; dcv-xsession.log: "Cannot read display number from Xdcv"). Pinning
+# llvmpipe makes GL init fast + deterministic.
+#
+# The vars MUST be set on the dcvserver *service*: dcvserver forks Xdcv, so Xdcv
+# inherits the unit's Environment=. /etc/environment does NOT work here -- systemd
+# services don't source it, so the dcvserver-forked Xdcv never sees it (verified on
+# a live node: vars in /etc/environment -> still hung; on dcvserver.service -> the
+# session gets a display). gnome-shell also inherits these via the session.
 # NOTE: assumes a non-GPU desktop partition; on GPU nodes drop this to keep HW accel.
-echo "[-] pinning Mesa software rendering (llvmpipe) for the headless DCV session"
-if ! grep -q '^LIBGL_ALWAYS_SOFTWARE=' /etc/environment 2>/dev/null; then
-  cat >> /etc/environment << 'EOF'
-LIBGL_ALWAYS_SOFTWARE=1
-GALLIUM_DRIVER=llvmpipe
+echo "[-] pinning Mesa software rendering (llvmpipe) for dcvserver"
+mkdir -p /etc/systemd/system/dcvserver.service.d
+cat > /etc/systemd/system/dcvserver.service.d/10-software-gl.conf << 'EOF'
+[Service]
+Environment=LIBGL_ALWAYS_SOFTWARE=1
+Environment=GALLIUM_DRIVER=llvmpipe
 EOF
-fi
+systemctl daemon-reload
 
 echo "[-] enabling DCV services"
 systemctl enable --now dcvserver dcvsimpleextauth
