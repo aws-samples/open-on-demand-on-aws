@@ -338,6 +338,10 @@ install -m 0644 "${DCV_ASSETS}/bc_desktop/form.yml"       /var/www/ood/apps/sys/
 install -m 0644 "${DCV_ASSETS}/bc_desktop/manifest.yml"   /var/www/ood/apps/sys/bc_desktop/manifest.yml
 install -m 0644 "${DCV_ASSETS}/bc_desktop/submit.yml.erb" /var/www/ood/apps/sys/bc_desktop/submit.yml.erb
 install -m 0644 "${DCV_ASSETS}/bc_desktop/view.html.erb"  /var/www/ood/apps/sys/bc_desktop/view.html.erb
+# GNOME 3 desktop launcher (the stock template ships a GNOME 2-era gnome.sh that
+# fails on the GNOME 3+ shipped by every DCV-supported OS).
+install -D -m 0755 "${DCV_ASSETS}/bc_desktop/template/desktops/gnome.sh" \
+  /var/www/ood/apps/sys/bc_desktop/template/desktops/gnome.sh
 
 # 2) Stage the DCV batch-connect template (ood_core ships none) + an upgrade-safe
 #    reconfigure hook: OOD RPM upgrades replace the gem dir and regenerate the
