@@ -68,7 +68,16 @@ module OodCore
                 echo "ERROR: DCV session '${dcv_session}' has no X display after wait. Diagnostics:"
                 dcv describe-session "${dcv_session}" 2>&1 || true
                 dcv list-sessions 2>&1 || true
+                echo "----- /var/log/dcv/server.log (tail) -----"
                 tail -n 40 /var/log/dcv/server.log 2>/dev/null || true
+                # The Xdcv + dcv-xsession logs name the actual reason the virtual X
+                # server never exposed a display output ("Failed while waiting for outputs").
+                for _l in /var/log/dcv/Xdcv.$(whoami).${dcv_session}.log \\
+                          /var/log/dcv/dcv-xsession.$(whoami).${dcv_session}.log \\
+                          /var/log/dcv/agent.$(whoami).${dcv_session}.log; do
+                  echo "----- ${_l} (tail) -----"
+                  tail -n 60 "${_l}" 2>/dev/null || echo "(not found)"
+                done
                 echo "DCV session failed to start" >&2
                 clean_up 1
               fi
