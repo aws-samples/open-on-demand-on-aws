@@ -139,6 +139,23 @@ set_dcv_conf connectivity web-url-path '"/"'
 # the dcv.rb batch-connect template issues (dcvsimpleextauth add-user) validate.
 set_dcv_conf security auth-token-verifier '"https://127.0.0.1:8444"'
 
+# Force Mesa software rendering (llvmpipe) node-wide. These are non-GPU compute
+# nodes; when a DCV virtual session starts, Xdcv initializes the GLX extension, and
+# if Mesa probes for a hardware DRI device it can block past DCV's session-start
+# timeout -- the virtual session then intermittently fails with "Failed while
+# waiting for outputs" (Xdcv never reports its display; see dcv-xsession.log
+# "Cannot read display number from Xdcv"). Pinning llvmpipe skips the hardware probe
+# so GL init is fast + deterministic. DCV opens a PAM session for the user, so
+# pam_env sources /etc/environment into it and Xdcv (+ gnome-shell) inherit these.
+# NOTE: assumes a non-GPU desktop partition; on GPU nodes drop this to keep HW accel.
+echo "[-] pinning Mesa software rendering (llvmpipe) for the headless DCV session"
+if ! grep -q '^LIBGL_ALWAYS_SOFTWARE=' /etc/environment 2>/dev/null; then
+  cat >> /etc/environment << 'EOF'
+LIBGL_ALWAYS_SOFTWARE=1
+GALLIUM_DRIVER=llvmpipe
+EOF
+fi
+
 echo "[-] enabling DCV services"
 systemctl enable --now dcvserver dcvsimpleextauth
 
