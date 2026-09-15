@@ -164,6 +164,30 @@ systemctl daemon-reload
 echo "[-] enabling DCV services"
 systemctl enable --now dcvserver dcvsimpleextauth
 
+# Pre-warm the software-GL stack on this fresh node. Cold first-load of the large
+# llvmpipe/LLVM libraries (plus first llvmpipe init) is slow, and DCV kills Xdcv if
+# it doesn't report its display within ~15s (non-configurable) -- so the first USER
+# session on a just-booted node intermittently fails with "Failed while waiting for
+# outputs" (Xdcv still bringing up GLX). Create + tear down a throwaway root-owned
+# virtual session now, while the node is still finishing bootstrap, so the stack is
+# warm (libs page-cached, llvmpipe primed) before jobs land. Timing is echoed to
+# CloudWatch. Invoked as `|| true` so it can never fail the bootstrap.
+warm_dcv_gl() {
+  echo "[-] pre-warming DCV GL stack (throwaway root session)"
+  local t0 disp="" i
+  t0=$(date +%s)
+  dcv create-session --owner root --storage-root /root dcv-warmup
+  for i in $(seq 1 40); do
+    disp=$(dcv describe-session dcv-warmup 2>/dev/null | awk '/X display:/{print $3}')
+    [ -n "$disp" ] && break
+    sleep 1
+  done
+  echo "[-] GL warm-up: display='${disp:-NONE}' after $(($(date +%s) - t0))s" \
+       "(instance=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/instance-type 2>/dev/null), nproc=$(nproc))"
+  dcv close-session dcv-warmup 2>/dev/null || true
+}
+warm_dcv_gl || true
+
 # Virtual sessions use Xdcv as the X server; no Xorg/XDummy/GDM needed. Keep the
 # node at multi-user.target (avoids GDM/Wayland); do NOT switch to graphical.target.
 echo "[-] setting multi-user.target"
